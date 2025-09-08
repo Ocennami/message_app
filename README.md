@@ -2,6 +2,10 @@
 
 MessageApp, the first project by Oceanami
 
+# Status
+
+Still in Development - Not Finished
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
