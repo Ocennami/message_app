@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:message_app/onboarding_screen.dart';
-import 'package:message_app/auth_screen.dart';// Màn hình onboarding của bạn
+import 'package:message_app/auth_screen.dart' hide HomeScreen; // Màn hình onboarding của bạn
 import 'package:message_app/home_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -46,9 +46,12 @@ class MyApp extends StatelessWidget {
   }
 
   Widget _getInitialScreen() {
-    if (!userLoggedIn) { // Ưu tiên 1: Nếu chưa đăng nhập -> OnboardingScreen
+    if (!userLoggedIn || !onboardingCompleted) { 
+      // Ưu tiên 1: Nếu chưa đăng nhập -> OnboardingScreen
+      // Ưu tiên 2: Nếu đã đăng nhập nhưng chưa hoàn thành onboarding -> OnboardingScreen
       return const OnboardingScreen();
-    } else { // Ngược lại (đã đăng nhập) -> HomeScreen
+    } else { 
+      // Ngược lại (đã đăng nhập VÀ đã hoàn thành onboarding) -> HomeScreen
       return const HomeScreen();
     }
   }

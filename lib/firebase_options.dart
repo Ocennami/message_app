@@ -78,4 +78,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'message-app-oceanami-8497a.firebasestorage.app',
     measurementId: 'G-VFNMHH7EWH',
   );
+
 }

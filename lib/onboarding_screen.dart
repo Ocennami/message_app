@@ -1,63 +1,204 @@
-// Bên trong OnboardingScreen, ví dụ khi nhấn nút "Hoàn thành"
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:ui'; // Cần cho ImageFilter.blur
 import 'package:flutter/material.dart';
-import 'package:message_app/auth_screen.dart'; // Import AuthScreen
+import 'package:flutter/services.dart'; // For LogicalKeyboardKey
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'intro_screens/intro_page_1.dart';
+import 'intro_screens/intro_page_2.dart';
+import 'intro_screens/intro_page_3.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:message_app/home_screen.dart';
 
-class OnboardingScreen extends StatelessWidget {
+// Intents for keyboard actions
+class NextPageIntent extends Intent {}
+class PreviousPageIntent extends Intent {}
+class DoneIntent extends Intent {} // Represents action triggered by Enter/Space
+
+class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
-  Future<void> _completeOnboarding(BuildContext context) async {
+  @override
+  _OnboardingScreenState createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends State<OnboardingScreen> {
+  final PageController _controller = PageController();
+  final FocusNode _focusNode = FocusNode();
+  bool onLastPage = false;
+  bool _isIntro3CommitmentUnderstood = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _completeOnboarding() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboardingCompleted', true);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+    );
+  }
 
-    // Sau khi lưu, điều hướng đến màn hình Đăng nhập/Đăng ký
-    if (context.mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const AuthScreen()), // Điều hướng đến AuthScreen
-      );
-    }
+  Widget _buildGlassButton({
+    required String text,
+    required VoidCallback? onPressed,
+    double width = 80,
+    double height = 40,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(15.0),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        child: Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: onPressed != null 
+                   ? Colors.white.withAlpha((0.2 * 255).round()) 
+                   : Colors.white.withAlpha((0.1 * 255).round()),
+            borderRadius: BorderRadius.circular(15.0),
+            border: Border.all(
+              color: onPressed != null
+                     ? Colors.white.withAlpha((0.3 * 255).round())
+                     : Colors.white.withAlpha((0.15 * 255).round()),
+              width: 1.5,
+            ),
+          ),
+          child: TextButton(
+            onPressed: onPressed,
+            style: TextButton.styleFrom(
+              foregroundColor: onPressed != null ? Colors.white : Colors.white54,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15.0),
+              ),
+            ),
+            child: Text(text),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold( // Đã sửa: CustomScaffold -> Scaffold
-      body: Center( // Giữ Center để căn giữa nội dung Column
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center, // Căn giữa các con của Column theo chiều dọc
+    return FocusableActionDetector(
+      autofocus: true,
+      focusNode: _focusNode,
+      shortcuts: <LogicalKeySet, Intent>{
+        LogicalKeySet(LogicalKeyboardKey.arrowRight): NextPageIntent(),
+        LogicalKeySet(LogicalKeyboardKey.arrowLeft): PreviousPageIntent(),
+        LogicalKeySet(LogicalKeyboardKey.enter): DoneIntent(), // Enter for Done/Next logic
+        LogicalKeySet(LogicalKeyboardKey.space): DoneIntent(), // Space for Done/Next logic
+      },
+      actions: <Type, Action<Intent>>{
+        NextPageIntent: CallbackAction<NextPageIntent>( // For ArrowRight key
+          onInvoke: (NextPageIntent intent) {
+            if (onLastPage) {
+              if (_isIntro3CommitmentUnderstood) {
+                _completeOnboarding();
+              }
+            } else {
+              _controller.nextPage(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeIn,
+              );
+            }
+            return null;
+          },
+        ),
+        PreviousPageIntent: CallbackAction<PreviousPageIntent>(
+          onInvoke: (PreviousPageIntent intent) {
+            if (_controller.page != null && _controller.page! > 0) {
+              _controller.previousPage(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeIn,
+              );
+            }
+            return null;
+          },
+        ),
+        DoneIntent: CallbackAction<DoneIntent>( // For Enter and Space keys
+          onInvoke: (DoneIntent intent) {
+            if (onLastPage) { // If on the last page (Done button context)
+              if (_isIntro3CommitmentUnderstood) {
+                _completeOnboarding();
+              }
+            } else { // Not on the last page (Next button context)
+              _controller.nextPage(
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeIn,
+              );
+            }
+            return null;
+          },
+        ),
+      },
+      child: Scaffold(
+        body: Stack(
           children: [
-            Flexible(
-              child: Center( // Center widget cho RichText
-                child: RichText(
-                  textAlign: TextAlign.center,
-                  text: const TextSpan(
-                    children: <TextSpan>[
-                      TextSpan(
-                        text: 'Welcome to Alliance Organization":v"\n',
-                        style: TextStyle(
-                          fontSize: 41,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                        ),
-                      ),
-                      TextSpan(
-                        text: 'Group Chat App chỉ dành cho thành viên Alliance Organization":v"\n',
-                        style: TextStyle(
-                          fontSize: 24,
-                          color: Colors.black,
-                        ),
-                      )
-                    ],
-                  ),
+            PageView(
+              controller: _controller,
+              onPageChanged: (index) {
+                setState(() {
+                  onLastPage = (index == 2);
+                  if (index != 2) {
+                    _isIntro3CommitmentUnderstood = false;
+                  }
+                });
+              },
+              children: [
+                IntroPage1(),
+                IntroPage2(),
+                IntroPage3(
+                  onCommitmentUnderstood: () {
+                    setState(() {
+                      _isIntro3CommitmentUnderstood = true;
+                    });
+                  },
                 ),
-              ),
+              ],
             ),
-            Padding( // Thêm Padding để tạo khoảng cách cho nút
-              padding: const EdgeInsets.symmetric(vertical: 24.0),
-              child: ElevatedButton(
-                onPressed: () => _completeOnboarding(context),
-                child: const Text('Bắt đầu sử dụng'),
+            Container(
+              alignment: const Alignment(0, 0.75),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildGlassButton(
+                    text: 'Return',
+                    onPressed: () {
+                       if (_controller.page != null && _controller.page! > 0) {
+                        _controller.previousPage(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeIn,
+                        );
+                       }
+                    },
+                  ),
+                  SmoothPageIndicator(controller: _controller, count: 3),
+                  onLastPage
+                      ? _buildGlassButton(
+                          text: 'Done',
+                          onPressed: _isIntro3CommitmentUnderstood
+                              ? _completeOnboarding
+                              : null,
+                        )
+                      : _buildGlassButton(
+                          text: 'Next',
+                          onPressed: () {
+                            if (!onLastPage) {
+                               _controller.nextPage(
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeIn,
+                              );
+                            }
+                          },
+                        ),
+                ],
               ),
-            ),
+            )
           ],
         ),
       ),
