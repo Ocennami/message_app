@@ -147,10 +147,12 @@ class _AuthScreenState extends State<AuthScreen>
       _toggleController.reverse();
 
       // Form transition ngay lập tức
-      _formController.reverse();
+      Timer(const Duration(milliseconds: 1200), () {
+        _formController.reverse();
+      });
 
       // Panel transition với delay 1.2s
-      Timer(const Duration(milliseconds: 1200), () {
+      Timer(const Duration(milliseconds: 600), () {
         _panelController.reverse();
       });
     }
@@ -533,37 +535,6 @@ class _AuthScreenState extends State<AuthScreen>
                   borderRadius: BorderRadius.circular(30),
                   child: Stack(
                     children: [
-                      // Toggle Background (::before element)
-                      AnimatedBuilder(
-                        animation: _toggleAnimation,
-                        builder: (context, child) {
-                          return Positioned(
-                            left: isWide
-                                ? Tween<double>(
-                              begin: -containerWidth * 2.5,
-                              end: containerWidth * 0.5,
-                            ).animate(_toggleAnimation).value
-                                : 0,
-                            top: isWide
-                                ? 0
-                                : Tween<double>(
-                              begin: -containerHeight * 2.7,
-                              end: containerHeight * 0.7,
-                            ).animate(_toggleAnimation).value,
-                            width: isWide ? containerWidth * 3 : containerWidth,
-                            height: isWide ? containerHeight : containerHeight * 3,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF7494EC),
-                                borderRadius: BorderRadius.circular(
-                                  isWide ? 150 : containerWidth * 0.2,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
                       // Login Form Box
                       AnimatedBuilder(
                         animation: _formTransitionAnimation,
@@ -583,10 +554,10 @@ class _AuthScreenState extends State<AuthScreen>
                             ).animate(_formTransitionAnimation).value,
                             width: isWide ? containerWidth * 0.5 : containerWidth,
                             height: isWide ? containerHeight : containerHeight * 0.7,
-                            child: Visibility(
-                              visible: !_isActive || _formTransitionAnimation.value < 1.0,
+                            child: Opacity(
+                              opacity: 1.0 - _formTransitionAnimation.value,
                               child: Container(
-                                color: Colors.white,
+                                color: Colors.white, // Ensures the form area is opaque during transition
                                 padding: EdgeInsets.symmetric(
                                   horizontal: constraints.maxWidth > 400 ? 40 : 20,
                                 ),
@@ -616,14 +587,45 @@ class _AuthScreenState extends State<AuthScreen>
                             ).animate(_formTransitionAnimation).value,
                             width: isWide ? containerWidth * 0.5 : containerWidth,
                             height: isWide ? containerHeight : containerHeight * 0.7,
-                            child: Visibility(
-                              visible: _isActive && _formTransitionAnimation.value >= 1.0,
+                            child: Opacity(
+                              opacity: _formTransitionAnimation.value,
                               child: Container(
-                                color: Colors.white,
+                                color: Colors.white, // Ensures the form area is opaque during transition
                                 padding: EdgeInsets.symmetric(
                                   horizontal: constraints.maxWidth > 400 ? 40 : 20,
                                 ),
                                 child: _buildRegisterForm(),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+
+                      // Toggle Background (::before element)
+                      AnimatedBuilder(
+                        animation: _toggleAnimation,
+                        builder: (context, child) {
+                          return Positioned(
+                            left: isWide
+                                ? Tween<double>(
+                              begin: -containerWidth * 2.5,
+                              end: containerWidth * 0.5,
+                            ).animate(_toggleAnimation).value
+                                : 0,
+                            top: isWide
+                                ? 0
+                                : Tween<double>(
+                              begin: -containerHeight * 2.7,
+                              end: containerHeight * 0.7,
+                            ).animate(_toggleAnimation).value,
+                            width: isWide ? containerWidth * 3 : containerWidth,
+                            height: isWide ? containerHeight : containerHeight * 3,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF7494EC),
+                                borderRadius: BorderRadius.circular(
+                                  isWide ? 150 : containerWidth * 0.2,
+                                ),
                               ),
                             ),
                           );
