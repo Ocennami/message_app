@@ -7,6 +7,7 @@ import 'intro_screens/intro_page_2.dart';
 import 'intro_screens/intro_page_3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:message_app/home_screen.dart';
+import 'package:message_app/auth_screen.dart'; // Thêm import cho AuthScreen
 
 // Intents for keyboard actions
 class NextPageIntent extends Intent {}
@@ -35,10 +36,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _completeOnboarding() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboardingCompleted', true);
+    await prefs.setBool('onboardingCompleted', true); // Vẫn lưu trạng thái này
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      MaterialPageRoute(builder: (context) => const HomeScreen()), // Chuyển đến AuthScreen
     );
   }
 
@@ -56,8 +57,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           width: width,
           height: height,
           decoration: BoxDecoration(
-            color: onPressed != null 
-                   ? Colors.white.withAlpha((0.2 * 255).round()) 
+            color: onPressed != null
+                   ? Colors.white.withAlpha((0.2 * 255).round())
                    : Colors.white.withAlpha((0.1 * 255).round()),
             borderRadius: BorderRadius.circular(15.0),
             border: Border.all(
@@ -90,11 +91,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       shortcuts: <LogicalKeySet, Intent>{
         LogicalKeySet(LogicalKeyboardKey.arrowRight): NextPageIntent(),
         LogicalKeySet(LogicalKeyboardKey.arrowLeft): PreviousPageIntent(),
-        LogicalKeySet(LogicalKeyboardKey.enter): DoneIntent(), // Enter for Done/Next logic
-        LogicalKeySet(LogicalKeyboardKey.space): DoneIntent(), // Space for Done/Next logic
+        LogicalKeySet(LogicalKeyboardKey.enter): DoneIntent(),
+        LogicalKeySet(LogicalKeyboardKey.space): DoneIntent(),
       },
       actions: <Type, Action<Intent>>{
-        NextPageIntent: CallbackAction<NextPageIntent>( // For ArrowRight key
+        NextPageIntent: CallbackAction<NextPageIntent>(
           onInvoke: (NextPageIntent intent) {
             if (onLastPage) {
               if (_isIntro3CommitmentUnderstood) {
@@ -120,13 +121,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             return null;
           },
         ),
-        DoneIntent: CallbackAction<DoneIntent>( // For Enter and Space keys
+        DoneIntent: CallbackAction<DoneIntent>(
           onInvoke: (DoneIntent intent) {
-            if (onLastPage) { // If on the last page (Done button context)
+            if (onLastPage) {
               if (_isIntro3CommitmentUnderstood) {
                 _completeOnboarding();
               }
-            } else { // Not on the last page (Next button context)
+            } else {
               _controller.nextPage(
                 duration: const Duration(milliseconds: 500),
                 curve: Curves.easeIn,

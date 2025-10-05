@@ -6,10 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_boxicons/flutter_boxicons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-// Màn hình giả lập, bạn hãy thay thế bằng màn hình chính của ứng dụng
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+import 'package:message_app/home_screen.dart';
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +35,6 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-}
 
 /// Màn hình xác thực với hiệu ứng chuyển đổi 100% giống file CSS
 class AuthScreen extends StatefulWidget {
@@ -217,15 +213,15 @@ class _AuthScreenState extends State<AuthScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 0), // Adjusted to remove negative margin effect, original: -10
+            padding: const EdgeInsets.only(bottom: 0),
             child: Text('Login',
                 style: GoogleFonts.poppins(
                     fontSize: 36,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF333333) // Ensure color is applied if needed
+                    color: const Color(0xFF333333)
                 )),
           ),
-          const SizedBox(height: 20), // Original bottom margin was -10, so effective space here is 20 - 10 = 10. Consider adjusting if layout is off.
+          const SizedBox(height: 20),
 
           TextFormField(
             controller: _emailController,
@@ -280,7 +276,7 @@ class _AuthScreenState extends State<AuthScreen>
             child: Text('or login with social platforms',
                 style: GoogleFonts.poppins(
                     fontSize: 14.5,
-                    color: const Color(0xFF333333) // Ensure color is applied if needed
+                    color: const Color(0xFF333333)
                 )),
           ),
           const SizedBox(height: 15),
@@ -306,15 +302,15 @@ class _AuthScreenState extends State<AuthScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 0), // Adjusted to remove negative margin effect, original: -10
+            padding: const EdgeInsets.only(bottom: 0),
             child: Text('Registration',
                 style: GoogleFonts.poppins(
                     fontSize: 36,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF333333) // Ensure color is applied if needed
+                    color: const Color(0xFF333333)
                 )),
           ),
-          const SizedBox(height: 20), // Original bottom margin was -10, so effective space here is 20 - 10 = 10. Consider adjusting if layout is off.
+          const SizedBox(height: 20),
 
           TextFormField(
             controller: _usernameController,
@@ -381,7 +377,7 @@ class _AuthScreenState extends State<AuthScreen>
             child: Text('or register with social platforms',
                 style: GoogleFonts.poppins(
                     fontSize: 14.5,
-                    color: const Color(0xFF333333) // Ensure color is applied if needed
+                    color: const Color(0xFF333333)
                 )),
           ),
           const SizedBox(height: 15),
@@ -526,7 +522,7 @@ class _AuthScreenState extends State<AuthScreen>
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withAlpha((255 * 0.2).round()), // Fixed withOpacity
+                      color: Colors.black.withAlpha((255 * 0.2).round()),
                       blurRadius: 30,
                     ),
                   ],

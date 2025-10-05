@@ -45,5 +45,13 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Message App cần truy cập thư viện ảnh để bạn gửi hình ảnh.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Message App cần quyền lưu ảnh vào thư viện của bạn.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Message App cần quyền camera để bạn chụp và gửi ảnh.</string>
+
 </dict>
 </plist>

@@ -43,3 +43,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Add this line
+    implementation("androidx.multidex:multidex:2.0.1")
+}

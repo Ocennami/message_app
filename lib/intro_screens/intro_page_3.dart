@@ -13,9 +13,10 @@ class IntroPage3 extends StatefulWidget {
 }
 
 class _IntroPage3State extends State<IntroPage3> with TickerProviderStateMixin {
-  static const String commitmentText = '''Điều Khoản Cam Kết Cá Nhân
+  static const String commitmentText =
+      '''Điều Khoản Cam Kết Cá Nhân và Cộng Đồng
 
-Tôi, [Tên của bạn/Người dùng], khi sử dụng ứng dụng này, xin tự nguyện cam kết:
+Xin chào tôi là Oceanami, người sáng lập ra MessageApplication này, tôi xin tự nguyện cam kết:
 
 1.  **Tôn trọng và Lịch sự**: Sẽ luôn đối xử với mọi người dùng khác bằng sự tôn trọng, không sử dụng ngôn từ gây tổn thương, xúc phạm hay phân biệt đối xử.
 2.  **Bảo mật Thông tin**: Ý thức được tầm quan trọng của việc bảo vệ thông tin cá nhân của bản thân và của người khác. Không chia sẻ thông tin nhạy cảm một cách bừa bãi.
@@ -23,9 +24,29 @@ Tôi, [Tên của bạn/Người dùng], khi sử dụng ứng dụng này, xin 
 4.  **Chống Tin giả và Spam**: Không lan truyền tin tức sai sự thật, tin đồn thất thiệt hoặc gửi các tin nhắn không mong muốn (spam) gây phiền hà cho cộng đồng.
 5.  **Đóng góp Xây dựng**: Sẵn sàng đóng góp ý kiến để cải thiện ứng dụng và cộng đồng người dùng một cách tích cực.
 
-Tôi hiểu rằng việc duy trì một môi trường trực tuyến an toàn và thân thiện là trách nhiệm chung. Bằng việc chấp nhận những điều khoản này, tôi đồng ý hành động một cách có trách nhiệm.
+Sau đây là nội quy của ứng dụng (Luật Cấm Phá) bắt buộc tất cả mọi người phải tuân thủ:
 
-(Cuộn xuống để đồng ý)''';
+1. **Cấm Ngôn từ Xúc phạm**: Không sử dụng ngôn từ thô tục, xúc phạm, phân biệt chủng tộc, giới tính, tôn giáo hoặc bất kỳ
+2. **Cấm Quấy rối**: Không quấy rối, đe dọa hoặc làm phiền người dùng khác dưới bất kỳ hình thức nào.
+3. **Cấm Chia sẻ Nội dung Độc hại**: Không chia sẻ nội dung bạo lực, khiêu dâm, hoặc bất kỳ nội dung nào vi phạm pháp luật.
+4. **Cấm Spam và Quảng cáo**: Không gửi tin nhắn rác, quảng cáo không mong muốn hoặc liên kết đến các trang web độc hại.
+5. **Cấm Mạo danh**: Không giả mạo danh tính của người khác hoặc tạo tài khoản giả mạo.
+6. **Cấm Vi phạm Bản quyền**: Không chia sẻ nội dung vi phạm bản quyền hoặc quyền sở hữu trí tuệ của người khác.
+7. **Cấm Hành vi Gian lận**: Không tham gia vào các hoạt động gian lận, lừa đảo hoặc bất kỳ hành vi nào nhằm trục lợi cá nhân.
+8. **Cấm Phá hoại Ứng dụng**: Không cố gắng phá hoại, hack hoặc làm gián đoạn hoạt động của ứng dụng hoặc dịch vụ liên quan.
+9. **Cấm Vi phạm Quy định Pháp luật**: Tuân thủ tất cả các quy định pháp luật hiện hành khi sử dụng ứng dụng.
+10. **Cấm Chia sẻ Thông tin Sai lệch**: Không lan truyền thông tin sai lệch, tin đồn hoặc nội dung
+
+## Những Điều Sau được Khuyến khích:
+1. **Tôn trọng Quyền Riêng tư**: Tôn trọng quyền riêng tư của người khác và không chia sẻ thông tin cá nhân mà không có sự đồng ý.
+2. **Giúp đỡ Người khác**: Sẵn sàng giúp đỡ và hỗ trợ người dùng khác khi họ gặp khó khăn.
+3. **Báo cáo Hành vi Vi phạm**: Chủ động báo cáo các hành vi vi phạm quy định để duy trì môi trường an toàn cho cộng đồng.
+4. **Tham gia Cộng đồng**: Tham gia vào các hoạt động cộng đồng, sự kiện hoặc nhóm thảo luận để xây dựng mối quan hệ tích cực.
+5. **Phản hồi Xây dựng**: Cung cấp phản hồi xây dựng để giúp cải thiện ứng dụng và dịch vụ.
+
+Mọi quyết định của Người Cầm Đầu Group (TrùmMafia🐧) là tuyệt đối. Việc lách luật là không được khuyến khích.
+Tôi hiểu rằng việc duy trì một môi trường trực tuyến an toàn và thân thiện là trách nhiệm chung. Bằng việc chấp nhận những điều khoản này, tôi đồng ý hành động một cách có trách nhiệm.
+Nếu vi phạm, tôi và kể cả các bạn phải sẵn sàng chịu mọi trách nhiệm và hậu quả theo quy định của ứng dụng và pháp luật.''';
 
   late AnimationController _hoverAnimationController;
   late Animation<Offset> _offsetAnimation;

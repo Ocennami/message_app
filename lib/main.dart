@@ -1,37 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:message_app/onboarding_screen.dart';
-import 'package:message_app/auth_screen.dart' hide HomeScreen; // Màn hình onboarding của bạn
+// Dòng import 'package:message_app/auth_screen.dart'... sẽ được xóa
 import 'package:message_app/home_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Kiểm tra xem người dùng đã hoàn thành onboarding chưa
   SharedPreferences prefs = await SharedPreferences.getInstance();
-  bool onboardingCompleted = prefs.getBool('onboardingCompleted') ?? false;
   bool userLoggedIn = prefs.getBool('userLoggedIn') ?? false;
 
-  runApp(MyApp(
-    onboardingCompleted: onboardingCompleted,
-    userLoggedIn: userLoggedIn,
-  ));
+  runApp(MyApp(userLoggedIn: userLoggedIn));
 }
 
 class MyApp extends StatelessWidget {
-  final bool onboardingCompleted;
   final bool userLoggedIn;
 
-  const MyApp({
-    super.key,
-    required this.onboardingCompleted,
-    required this.userLoggedIn,
-  });
+  const MyApp({super.key, required this.userLoggedIn});
 
   @override
   Widget build(BuildContext context) {
@@ -42,17 +30,15 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: _getInitialScreen(),
+      routes: {},
     );
   }
 
   Widget _getInitialScreen() {
-    if (!userLoggedIn || !onboardingCompleted) { 
-      // Ưu tiên 1: Nếu chưa đăng nhập -> OnboardingScreen
-      // Ưu tiên 2: Nếu đã đăng nhập nhưng chưa hoàn thành onboarding -> OnboardingScreen
-      return const OnboardingScreen();
-    } else { 
-      // Ngược lại (đã đăng nhập VÀ đã hoàn thành onboarding) -> HomeScreen
+    if (userLoggedIn) {
       return const HomeScreen();
+    } else {
+      return const OnboardingScreen();
     }
   }
 }
