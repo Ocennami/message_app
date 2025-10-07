@@ -6,12 +6,13 @@ import 'intro_screens/intro_page_1.dart';
 import 'intro_screens/intro_page_2.dart';
 import 'intro_screens/intro_page_3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:message_app/home_screen.dart';
-import 'package:message_app/auth_screen.dart'; // Thêm import cho AuthScreen
+import 'package:message_app/auth_screen.dart';
 
 // Intents for keyboard actions
 class NextPageIntent extends Intent {}
+
 class PreviousPageIntent extends Intent {}
+
 class DoneIntent extends Intent {} // Represents action triggered by Enter/Space
 
 class OnboardingScreen extends StatefulWidget {
@@ -39,7 +40,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     await prefs.setBool('onboardingCompleted', true); // Vẫn lưu trạng thái này
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const HomeScreen()), // Chuyển đến AuthScreen
+      MaterialPageRoute(
+        builder: (context) => const AuthScreen(),
+      ), // Chuyển đến AuthScreen
     );
   }
 
@@ -58,20 +61,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           height: height,
           decoration: BoxDecoration(
             color: onPressed != null
-                   ? Colors.white.withAlpha((0.2 * 255).round())
-                   : Colors.white.withAlpha((0.1 * 255).round()),
+                ? Colors.white.withAlpha((0.2 * 255).round())
+                : Colors.white.withAlpha((0.1 * 255).round()),
             borderRadius: BorderRadius.circular(15.0),
             border: Border.all(
               color: onPressed != null
-                     ? Colors.white.withAlpha((0.3 * 255).round())
-                     : Colors.white.withAlpha((0.15 * 255).round()),
+                  ? Colors.white.withAlpha((0.3 * 255).round())
+                  : Colors.white.withAlpha((0.15 * 255).round()),
               width: 1.5,
             ),
           ),
           child: TextButton(
             onPressed: onPressed,
             style: TextButton.styleFrom(
-              foregroundColor: onPressed != null ? Colors.white : Colors.white54,
+              foregroundColor: onPressed != null
+                  ? Colors.white
+                  : Colors.white54,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(15.0),
               ),
@@ -170,12 +175,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   _buildGlassButton(
                     text: 'Return',
                     onPressed: () {
-                       if (_controller.page != null && _controller.page! > 0) {
+                      if (_controller.page != null && _controller.page! > 0) {
                         _controller.previousPage(
                           duration: const Duration(milliseconds: 500),
                           curve: Curves.easeIn,
                         );
-                       }
+                      }
                     },
                   ),
                   SmoothPageIndicator(controller: _controller, count: 3),
@@ -190,7 +195,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           text: 'Next',
                           onPressed: () {
                             if (!onLastPage) {
-                               _controller.nextPage(
+                              _controller.nextPage(
                                 duration: const Duration(milliseconds: 500),
                                 curve: Curves.easeIn,
                               );
@@ -199,7 +204,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                 ],
               ),
-            )
+            ),
           ],
         ),
       ),

@@ -1,3 +1,8 @@
+// This file contains unused models that were created but never integrated.
+// Keeping it for potential future use or reference.
+// Current implementation in home_screen.dart uses its own _ChatMessage class.
+
+/* UNUSED - For reference only
 enum RoomType { public, private }
 
 class ChatRoom {
@@ -8,7 +13,7 @@ class ChatRoom {
   final String avatarUrl;
   final int unreadCount;
   final RoomType type;
-  final List<String> members; // Chỉ dùng cho phòng private
+  final List<String> members;
 
   ChatRoom({
     required this.id,
@@ -25,7 +30,7 @@ class ChatRoom {
 class Message {
   final String id;
   final String text;
-  final String senderId; // To identify who sent the message
+  final String senderId;
   final DateTime timestamp;
 
   Message({
@@ -35,3 +40,4 @@ class Message {
     required this.timestamp,
   });
 }
+*/

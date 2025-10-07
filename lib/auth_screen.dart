@@ -2,39 +2,12 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_boxicons/flutter_boxicons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:message_app/home_screen.dart';
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home Screen'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setBool('userLoggedIn', false);
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const AuthScreen()),
-              );
-            },
-          )
-        ],
-      ),
-      body: Center(
-        child: Text(
-          'Welcome, ${FirebaseAuth.instance.currentUser?.email ?? 'Guest'}!',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-      ),
-    );
-  }
+import 'package:message_app/services/supabase_auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 /// Màn hình xác thực với hiệu ứng chuyển đổi 100% giống file CSS
 class AuthScreen extends StatefulWidget {
@@ -44,8 +17,7 @@ class AuthScreen extends StatefulWidget {
   _AuthScreenState createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen>
-    with TickerProviderStateMixin {
+class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   /* ────────────────────────────── Controller & State ────────────────────── */
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -155,12 +127,15 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   /* ─────────────────────────────── Helper Widgets ─────────────────────── */
-  InputDecoration _fieldDecoration({required String hint, required IconData icon}) {
+  InputDecoration _fieldDecoration({
+    required String hint,
+    required IconData icon,
+  }) {
     return InputDecoration(
       hintText: hint,
       hintStyle: GoogleFonts.poppins(
-          color: const Color(0xFF888888),
-          fontWeight: FontWeight.w400
+        color: const Color(0xFF888888),
+        fontWeight: FontWeight.w400,
       ),
       suffixIcon: Padding(
         padding: const EdgeInsets.only(right: 20),
@@ -214,22 +189,28 @@ class _AuthScreenState extends State<AuthScreen>
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 0),
-            child: Text('Login',
-                style: GoogleFonts.poppins(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF333333)
-                )),
+            child: Text(
+              'Login',
+              style: GoogleFonts.poppins(
+                fontSize: 36,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF333333),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
 
           TextFormField(
             controller: _emailController,
             decoration: _fieldDecoration(
-                hint: 'Username', icon: Boxicons.bxs_user),
+              hint: 'Email',
+              icon: Boxicons.bxs_envelope,
+            ),
+            keyboardType: TextInputType.emailAddress,
             validator: (v) {
               if (v == null || v.trim().isEmpty) return 'Please enter email';
-              if (!v.contains('@')) return 'Invalid email';
+              if (!v.contains('@') || !v.contains('.'))
+                return 'Invalid email format';
               return null;
             },
             style: GoogleFonts.poppins(
@@ -244,7 +225,9 @@ class _AuthScreenState extends State<AuthScreen>
             controller: _passwordController,
             obscureText: true,
             decoration: _fieldDecoration(
-                hint: 'Password', icon: Boxicons.bxs_lock_alt),
+              hint: 'Password',
+              icon: Boxicons.bxs_lock_alt,
+            ),
             validator: (v) {
               if (v == null || v.isEmpty) return 'Please enter password';
               return null;
@@ -261,9 +244,13 @@ class _AuthScreenState extends State<AuthScreen>
             alignment: Alignment.centerLeft,
             child: InkWell(
               onTap: _forgotPassword,
-              child: Text('Forgot Password?',
-                  style: GoogleFonts.poppins(
-                      fontSize: 14.5, color: const Color(0xFF333333))),
+              child: Text(
+                'Forgot Password?',
+                style: GoogleFonts.poppins(
+                  fontSize: 14.5,
+                  color: const Color(0xFF333333),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 15),
@@ -273,11 +260,13 @@ class _AuthScreenState extends State<AuthScreen>
 
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 15),
-            child: Text('or login with social platforms',
-                style: GoogleFonts.poppins(
-                    fontSize: 14.5,
-                    color: const Color(0xFF333333)
-                )),
+            child: Text(
+              'or login with social platforms',
+              style: GoogleFonts.poppins(
+                fontSize: 14.5,
+                color: const Color(0xFF333333),
+              ),
+            ),
           ),
           const SizedBox(height: 15),
 
@@ -289,7 +278,7 @@ class _AuthScreenState extends State<AuthScreen>
               _socialBtn(Boxicons.bxl_github),
               _socialBtn(Boxicons.bxl_linkedin),
             ],
-          )
+          ),
         ],
       ),
     );
@@ -298,100 +287,112 @@ class _AuthScreenState extends State<AuthScreen>
   Widget _buildRegisterForm() {
     return Form(
       key: _formKeyRegister,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 0),
-            child: Text('Registration',
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 0),
+              child: Text(
+                'Registration',
                 style: GoogleFonts.poppins(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF333333)
-                )),
-          ),
-          const SizedBox(height: 20),
-
-          TextFormField(
-            controller: _usernameController,
-            decoration:
-            _fieldDecoration(hint: 'Username', icon: Boxicons.bxs_user),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) {
-                return 'Username cannot be empty';
-              }
-              return null;
-            },
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              color: const Color(0xFF333333),
-              fontWeight: FontWeight.w500,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF333333),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 30),
+            const SizedBox(height: 20),
 
-          TextFormField(
-            controller: _emailController,
-            decoration:
-            _fieldDecoration(hint: 'Email', icon: Boxicons.bxs_envelope),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) {
-                return 'Email cannot be empty';
-              }
-              if (!v.contains('@')) return 'Invalid email';
-              return null;
-            },
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              color: const Color(0xFF333333),
-              fontWeight: FontWeight.w500,
+            TextFormField(
+              controller: _usernameController,
+              decoration: _fieldDecoration(
+                hint: 'Username',
+                icon: Boxicons.bxs_user,
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'Username cannot be empty';
+                }
+                return null;
+              },
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: const Color(0xFF333333),
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-          const SizedBox(height: 30),
+            const SizedBox(height: 30),
 
-          TextFormField(
-            controller: _passwordController,
-            obscureText: true,
-            decoration: _fieldDecoration(
-                hint: 'Password', icon: Boxicons.bxs_lock_alt),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Password cannot be empty';
-              if (v.length < 6) {
-                return 'Password must be at least 6 characters';
-              }
-              return null;
-            },
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              color: const Color(0xFF333333),
-              fontWeight: FontWeight.w500,
+            TextFormField(
+              controller: _emailController,
+              decoration: _fieldDecoration(
+                hint: 'Email',
+                icon: Boxicons.bxs_envelope,
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'Email cannot be empty';
+                }
+                if (!v.contains('@')) return 'Invalid email';
+                return null;
+              },
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: const Color(0xFF333333),
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-          const SizedBox(height: 30),
+            const SizedBox(height: 30),
 
-          _submitButton('Register'),
-          const SizedBox(height: 15),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: _fieldDecoration(
+                hint: 'Password',
+                icon: Boxicons.bxs_lock_alt,
+              ),
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Password cannot be empty';
+                if (v.length < 6) {
+                  return 'Password must be at least 6 characters';
+                }
+                return null;
+              },
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: const Color(0xFF333333),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 30),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 15),
-            child: Text('or register with social platforms',
+            _submitButton('Register'),
+            const SizedBox(height: 15),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              child: Text(
+                'or register with social platforms',
                 style: GoogleFonts.poppins(
-                    fontSize: 14.5,
-                    color: const Color(0xFF333333)
-                )),
-          ),
-          const SizedBox(height: 15),
+                  fontSize: 14.5,
+                  color: const Color(0xFF333333),
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _socialBtn(Boxicons.bxl_google),
-              _socialBtn(Boxicons.bxl_facebook),
-              _socialBtn(Boxicons.bxl_github),
-              _socialBtn(Boxicons.bxl_linkedin),
-            ],
-          )
-        ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _socialBtn(Boxicons.bxl_google),
+                _socialBtn(Boxicons.bxl_facebook),
+                _socialBtn(Boxicons.bxl_github),
+                _socialBtn(Boxicons.bxl_linkedin),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -409,17 +410,21 @@ class _AuthScreenState extends State<AuthScreen>
         ),
         child: _isLoading
             ? const SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(
-                strokeWidth: 2, color: Colors.white))
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
             : Text(
-          label,
-          style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.white),
-        ),
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }
@@ -427,7 +432,9 @@ class _AuthScreenState extends State<AuthScreen>
   /* ─────────────────────────────── Core Logic ─────────────────────── */
   Future<void> _submitForm() async {
     final isLogin = !_isActive;
-    final form = isLogin ? _formKeyLogin.currentState : _formKeyRegister.currentState;
+    final form = isLogin
+        ? _formKeyLogin.currentState
+        : _formKeyRegister.currentState;
 
     final isValid = form?.validate() ?? false;
     if (!isValid) return;
@@ -435,37 +442,58 @@ class _AuthScreenState extends State<AuthScreen>
     setState(() => _isLoading = true);
 
     try {
+      final authService = SupabaseAuthService();
+
       if (isLogin) {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
+        // Sign in with Supabase
+        await authService.signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
       } else {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        // Register with Supabase
+        final username = _usernameController.text.trim().isNotEmpty
+            ? _usernameController.text.trim()
+            : _emailController.text.trim().split('@')[0];
+
+        await authService.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
+          displayName: username,
         );
-        if (_usernameController.text.trim().isNotEmpty) {
-          await FirebaseAuth.instance.currentUser
-              ?.updateDisplayName(_usernameController.text.trim());
-        }
       }
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('userLoggedIn', true);
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-    } on FirebaseAuthException catch (e) {
-      final msg = e.message ?? 'Something went wrong. Please try again.';
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } on supabase.AuthException catch (e) {
+      String msg = 'Something went wrong. Please try again.';
+
+      // Supabase error codes
+      if (e.message.contains('Invalid login credentials')) {
+        msg = 'Incorrect email or password.';
+      } else if (e.message.contains('User already registered')) {
+        msg = 'This email is already registered.';
+      } else if (e.message.contains('Email not confirmed')) {
+        msg = 'Please verify your email before logging in.';
+      } else if (e.message.contains('Password should be at least')) {
+        msg = 'Password must be at least 6 characters.';
+      } else {
+        msg = e.message;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: Colors.red));
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Unexpected error. Please try again.'),
-            backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Unexpected error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -473,22 +501,44 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _forgotPassword() async {
-    if (_emailController.text.trim().isEmpty) {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Please enter your email to reset password.')),
+          content: Text('Please enter your email to reset password.'),
+        ),
+      );
+      return;
+    }
+    if (!email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address.')),
       );
       return;
     }
     try {
-      await FirebaseAuth.instance
-          .sendPasswordResetEmail(email: _emailController.text.trim());
+      final authService = SupabaseAuthService();
+      await authService.resetPassword(email);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset email sent.')),
+        const SnackBar(
+          content: Text('Password reset email sent. Check your inbox.'),
+        ),
       );
+    } on supabase.AuthException catch (e) {
+      String message = 'Could not send email. Try again later.';
+      if (e.message.contains('User not found')) {
+        message = 'No account found with this email.';
+      } else if (e.message.contains('Invalid email')) {
+        message = 'Invalid email format.';
+      } else {
+        message = e.message;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not send email. Try again later.')),
+        const SnackBar(content: Text('Network error. Check your connection.')),
       );
     }
   }
@@ -508,188 +558,228 @@ class _AuthScreenState extends State<AuthScreen>
             ),
           ),
           child: Center(
-            child: LayoutBuilder(builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 650;
-              final containerWidth = isWide ? 850.0 : constraints.maxWidth - 40;
-              final containerHeight = isWide ? 550.0 : constraints.maxHeight - 40;
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 650;
+                final containerWidth = isWide
+                    ? 850.0
+                    : constraints.maxWidth - 40;
+                final containerHeight = isWide
+                    ? 550.0
+                    : constraints.maxHeight - 40;
 
-              return Container(
-                width: containerWidth,
-                height: containerHeight,
-                margin: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha((255 * 0.2).round()),
-                      blurRadius: 30,
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: Stack(
-                    children: [
-                      // Login Form Box
-                      AnimatedBuilder(
-                        animation: _formTransitionAnimation,
-                        builder: (context, child) {
-                          return Positioned(
-                            right: isWide
-                                ? Tween<double>(
-                              begin: 0,
-                              end: containerWidth * 0.5,
-                            ).animate(_formTransitionAnimation).value
-                                : 0,
-                            bottom: isWide
-                                ? 0
-                                : Tween<double>(
-                              begin: 0,
-                              end: containerHeight * 0.3,
-                            ).animate(_formTransitionAnimation).value,
-                            width: isWide ? containerWidth * 0.5 : containerWidth,
-                            height: isWide ? containerHeight : containerHeight * 0.7,
-                            child: Opacity(
-                              opacity: 1.0 - _formTransitionAnimation.value,
-                              child: Container(
-                                color: Colors.white, // Ensures the form area is opaque during transition
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: constraints.maxWidth > 400 ? 40 : 20,
-                                ),
-                                child: _buildLoginForm(),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
-                      // Register Form Box
-                      AnimatedBuilder(
-                        animation: _formTransitionAnimation,
-                        builder: (context, child) {
-                          return Positioned(
-                            right: isWide
-                                ? Tween<double>(
-                              begin: 0,
-                              end: containerWidth * 0.5,
-                            ).animate(_formTransitionAnimation).value
-                                : 0,
-                            bottom: isWide
-                                ? 0
-                                : Tween<double>(
-                              begin: 0,
-                              end: containerHeight * 0.3,
-                            ).animate(_formTransitionAnimation).value,
-                            width: isWide ? containerWidth * 0.5 : containerWidth,
-                            height: isWide ? containerHeight : containerHeight * 0.7,
-                            child: Opacity(
-                              opacity: _formTransitionAnimation.value,
-                              child: Container(
-                                color: Colors.white, // Ensures the form area is opaque during transition
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: constraints.maxWidth > 400 ? 40 : 20,
-                                ),
-                                child: _buildRegisterForm(),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
-                      // Toggle Background (::before element)
-                      AnimatedBuilder(
-                        animation: _toggleAnimation,
-                        builder: (context, child) {
-                          return Positioned(
-                            left: isWide
-                                ? Tween<double>(
-                              begin: -containerWidth * 2.5,
-                              end: containerWidth * 0.5,
-                            ).animate(_toggleAnimation).value
-                                : 0,
-                            top: isWide
-                                ? 0
-                                : Tween<double>(
-                              begin: -containerHeight * 2.7,
-                              end: containerHeight * 0.7,
-                            ).animate(_toggleAnimation).value,
-                            width: isWide ? containerWidth * 3 : containerWidth,
-                            height: isWide ? containerHeight : containerHeight * 3,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF7494EC),
-                                borderRadius: BorderRadius.circular(
-                                  isWide ? 150 : containerWidth * 0.2,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
-                      // Toggle Panel Left (Hello, Welcome!)
-                      AnimatedBuilder(
-                        animation: _panelLeftAnimation,
-                        builder: (context, child) {
-                          return Positioned(
-                            left: isWide
-                                ? Tween<double>(
-                              begin: 0,
-                              end: -containerWidth * 0.5,
-                            ).animate(_panelLeftAnimation).value
-                                : 0,
-                            top: isWide
-                                ? 0
-                                : Tween<double>(
-                              begin: 0,
-                              end: -containerHeight * 0.3,
-                            ).animate(_panelLeftAnimation).value,
-                            width: isWide ? containerWidth * 0.5 : containerWidth,
-                            height: isWide ? containerHeight : containerHeight * 0.3,
-                            child: _buildTogglePanel(
-                              title: 'Hello, Welcome!',
-                              text: "Don't have an account?",
-                              buttonText: 'Register',
-                              onPressed: _toggleMode,
-                            ),
-                          );
-                        },
-                      ),
-
-                      // Toggle Panel Right (Welcome Back!)
-                      AnimatedBuilder(
-                        animation: _panelRightAnimation,
-                        builder: (context, child) {
-                          return Positioned(
-                            right: isWide
-                                ? Tween<double>(
-                              begin: -containerWidth * 0.5,
-                              end: 0,
-                            ).animate(_panelRightAnimation).value
-                                : 0,
-                            bottom: isWide
-                                ? 0
-                                : Tween<double>(
-                              begin: -containerHeight * 0.3,
-                              end: 0,
-                            ).animate(_panelRightAnimation).value,
-                            width: isWide ? containerWidth * 0.5 : containerWidth,
-                            height: isWide ? containerHeight : containerHeight * 0.3,
-                            child: _buildTogglePanel(
-                              title: 'Welcome Back!',
-                              text: 'Already have an account?',
-                              buttonText: 'Login',
-                              onPressed: _toggleMode,
-                            ),
-                          );
-                        },
+                return Container(
+                  width: containerWidth,
+                  height: containerHeight,
+                  margin: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha((255 * 0.2).round()),
+                        blurRadius: 30,
                       ),
                     ],
                   ),
-                ),
-              );
-            }),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Stack(
+                      children: [
+                        // Login Form Box
+                        AnimatedBuilder(
+                          animation: _formTransitionAnimation,
+                          builder: (context, child) {
+                            return Positioned(
+                              right: isWide
+                                  ? Tween<double>(
+                                      begin: 0,
+                                      end: containerWidth * 0.5,
+                                    ).animate(_formTransitionAnimation).value
+                                  : 0,
+                              bottom: isWide
+                                  ? 0
+                                  : Tween<double>(
+                                      begin: 0,
+                                      end: containerHeight * 0.3,
+                                    ).animate(_formTransitionAnimation).value,
+                              width: isWide
+                                  ? containerWidth * 0.5
+                                  : containerWidth,
+                              height: isWide
+                                  ? containerHeight
+                                  : containerHeight * 0.7,
+                              child: Opacity(
+                                opacity: 1.0 - _formTransitionAnimation.value,
+                                child: Container(
+                                  color: Colors
+                                      .white, // Ensures the form area is opaque during transition
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: constraints.maxWidth > 400
+                                        ? 40
+                                        : 20,
+                                  ),
+                                  child: _buildLoginForm(),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        // Register Form Box
+                        AnimatedBuilder(
+                          animation: _formTransitionAnimation,
+                          builder: (context, child) {
+                            return Positioned(
+                              right: isWide
+                                  ? Tween<double>(
+                                      begin: 0,
+                                      end: containerWidth * 0.5,
+                                    ).animate(_formTransitionAnimation).value
+                                  : 0,
+                              bottom: isWide
+                                  ? 0
+                                  : Tween<double>(
+                                      begin: 0,
+                                      end: containerHeight * 0.3,
+                                    ).animate(_formTransitionAnimation).value,
+                              width: isWide
+                                  ? containerWidth * 0.5
+                                  : containerWidth,
+                              height: isWide
+                                  ? containerHeight
+                                  : containerHeight * 0.7,
+                              child: Opacity(
+                                opacity: _formTransitionAnimation.value,
+                                child: Container(
+                                  color: Colors
+                                      .white, // Ensures the form area is opaque during transition
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: constraints.maxWidth > 400
+                                        ? 40
+                                        : 20,
+                                  ),
+                                  child: _buildRegisterForm(),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        // Toggle Background (::before element)
+                        AnimatedBuilder(
+                          animation: _toggleAnimation,
+                          builder: (context, child) {
+                            return Positioned(
+                              left: isWide
+                                  ? Tween<double>(
+                                      begin: -containerWidth * 2.5,
+                                      end: containerWidth * 0.5,
+                                    ).animate(_toggleAnimation).value
+                                  : 0,
+                              top: isWide
+                                  ? 0
+                                  : Tween<double>(
+                                      begin: -containerHeight * 2.7,
+                                      end: containerHeight * 0.7,
+                                    ).animate(_toggleAnimation).value,
+                              width: isWide
+                                  ? containerWidth * 3
+                                  : containerWidth,
+                              height: isWide
+                                  ? containerHeight
+                                  : containerHeight * 3,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF7494EC),
+                                  borderRadius: BorderRadius.circular(
+                                    isWide ? 150 : containerWidth * 0.2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        // Toggle Panel Left (Hello, Welcome!)
+                        AnimatedBuilder(
+                          animation: _panelLeftAnimation,
+                          builder: (context, child) {
+                            return Positioned(
+                              left: isWide
+                                  ? Tween<double>(
+                                      begin: 0,
+                                      end: -containerWidth * 0.5,
+                                    ).animate(_panelLeftAnimation).value
+                                  : 0,
+                              top: isWide
+                                  ? 0
+                                  : Tween<double>(
+                                      begin: 0,
+                                      end: -containerHeight * 0.3,
+                                    ).animate(_panelLeftAnimation).value,
+                              width: isWide
+                                  ? containerWidth * 0.5
+                                  : containerWidth,
+                              height: isWide
+                                  ? containerHeight
+                                  : containerHeight * 0.3,
+                              child: IgnorePointer(
+                                ignoring:
+                                    _isActive, // Only clickable when Login form visible
+                                child: _buildTogglePanel(
+                                  title: 'Hello, Welcome!',
+                                  text: "Don't have an account?",
+                                  buttonText: 'Register',
+                                  onPressed: _toggleMode,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        // Toggle Panel Right (Welcome Back!)
+                        AnimatedBuilder(
+                          animation: _panelRightAnimation,
+                          builder: (context, child) {
+                            return Positioned(
+                              right: isWide
+                                  ? Tween<double>(
+                                      begin: -containerWidth * 0.5,
+                                      end: 0,
+                                    ).animate(_panelRightAnimation).value
+                                  : 0,
+                              bottom: isWide
+                                  ? 0
+                                  : Tween<double>(
+                                      begin: -containerHeight * 0.3,
+                                      end: 0,
+                                    ).animate(_panelRightAnimation).value,
+                              width: isWide
+                                  ? containerWidth * 0.5
+                                  : containerWidth,
+                              height: isWide
+                                  ? containerHeight
+                                  : containerHeight * 0.3,
+                              child: IgnorePointer(
+                                ignoring:
+                                    !_isActive, // Only clickable when Register form visible
+                                child: _buildTogglePanel(
+                                  title: 'Welcome Back!',
+                                  text: 'Already have an account?',
+                                  buttonText: 'Login',
+                                  onPressed: _toggleMode,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -722,10 +812,7 @@ class _AuthScreenState extends State<AuthScreen>
           Text(
             text,
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 14.5,
-              color: Colors.white,
-            ),
+            style: GoogleFonts.poppins(fontSize: 14.5, color: Colors.white),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -737,7 +824,7 @@ class _AuthScreenState extends State<AuthScreen>
                 backgroundColor: Colors.transparent,
                 side: const BorderSide(color: Colors.white, width: 2),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 elevation: 0,
               ),
@@ -750,7 +837,7 @@ class _AuthScreenState extends State<AuthScreen>
                 ),
               ),
             ),
-          )
+          ),
         ],
       ),
     );
