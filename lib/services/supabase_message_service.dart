@@ -42,16 +42,68 @@ class SupabaseMessageService {
 
       final limitedMessages = filteredMessages.take(limit).toList();
 
-      // Enrich messages with user info
+      // Get message IDs for batch fetching reactions and seen status
+      final messageIds = limitedMessages.map((m) => m['id']).toList();
+
+      // Fetch reactions for all messages
+      final reactions = messageIds.isNotEmpty
+          ? await _client
+                .from('message_reactions')
+                .select('message_id, user_id, emoji')
+                .inFilter('message_id', messageIds)
+          : [];
+
+      // Fetch seen status for all messages
+      final seenStatus = messageIds.isNotEmpty
+          ? await _client
+                .from('message_seen')
+                .select('message_id, user_id')
+                .inFilter('message_id', messageIds)
+          : [];
+
+      // Group reactions by message_id
+      final reactionsMap = <String, Map<String, String>>{};
+      for (final reaction in reactions) {
+        final msgId = reaction['message_id'] as String;
+        final emoji = reaction['emoji'] as String;
+        final userId = reaction['user_id'] as String;
+
+        reactionsMap[msgId] ??= {};
+        reactionsMap[msgId]![emoji] = userId;
+      }
+
+      // Group seen status by message_id
+      final seenMap = <String, int>{};
+      for (final seen in seenStatus) {
+        final msgId = seen['message_id'] as String;
+        seenMap[msgId] = (seenMap[msgId] ?? 0) + 1;
+      }
+
+      // Enrich messages with user info, reactions, and seen status
       final enrichedMessages = limitedMessages.map((msg) {
+        final msgId = msg['id'] as String;
         final userId = msg['user_id'];
         final user = usersMap[userId];
+        final replyToId = msg['reply_to_id'] as String?;
+
+        // Find replied message for preview
+        Map<String, dynamic>? repliedMsg;
+        if (replyToId != null) {
+          repliedMsg = limitedMessages.firstWhere(
+            (m) => m['id'] == replyToId,
+            orElse: () => {},
+          );
+        }
 
         return {
           ...msg,
           'sender_name': user?['display_name'],
           'sender_photo': user?['photo_url'],
           'sender_email': user?['email'],
+          'reactions': reactionsMap[msgId] ?? {},
+          'seen_count': seenMap[msgId] ?? 0,
+          'reply_to_text': repliedMsg?['text'],
+          'reply_to_sender': usersMap[repliedMsg?['user_id']]?['display_name'],
         };
       }).toList();
 
@@ -137,7 +189,7 @@ class SupabaseMessageService {
   }) async {
     final userId = await _getCurrentUserId();
 
-    await _client.from('reactions').upsert({
+    await _client.from('message_reactions').upsert({
       'message_id': messageId,
       'user_id': userId,
       'emoji': emoji,
@@ -152,7 +204,7 @@ class SupabaseMessageService {
     final userId = await _getCurrentUserId();
 
     await _client
-        .from('reactions')
+        .from('message_reactions')
         .delete()
         .eq('message_id', messageId)
         .eq('user_id', userId)
@@ -163,7 +215,7 @@ class SupabaseMessageService {
   Future<void> markAsRead(String messageId) async {
     final userId = await _getCurrentUserId();
 
-    await _client.from('read_receipts').upsert({
+    await _client.from('message_seen').upsert({
       'message_id': messageId,
       'user_id': userId,
     });
@@ -195,7 +247,7 @@ class SupabaseMessageService {
     final userId = await _getCurrentUserId();
 
     if (isTyping) {
-      await _client.from('typing_indicators').upsert({
+      await _client.from('typing_status').upsert({
         'conversation_id': conversationId,
         'user_id': userId,
         'is_typing': true,
@@ -203,7 +255,7 @@ class SupabaseMessageService {
       });
     } else {
       await _client
-          .from('typing_indicators')
+          .from('typing_status')
           .delete()
           .eq('conversation_id', conversationId)
           .eq('user_id', userId);
@@ -215,7 +267,7 @@ class SupabaseMessageService {
     String conversationId = 'default',
   }) async* {
     await for (final data
-        in _client.from('typing_indicators').stream(primaryKey: ['id'])) {
+        in _client.from('typing_status').stream(primaryKey: ['id'])) {
       // Filter in stream
       final filtered = data
           .where(

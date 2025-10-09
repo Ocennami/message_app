@@ -1,6 +1,7 @@
-plugins {
-    id("com.google.gms.google-services") version "4.3.15" apply false
-}
+// Removed Firebase plugin after migration to Supabase
+// plugins {
+//     id("com.google.gms.google-services") version "4.3.15" apply false
+// }
 
 allprojects {
     repositories {

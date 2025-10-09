@@ -48,6 +48,7 @@ dependencies:
   flutter_chat_ui: ^2.9.0
   google_fonts: ^6.3.1
   uuid: ^4.5.1
+  url_launcher: ^6.3.1
   shared_preferences: ^2.5.3
   provider: ^6.1.5+1
   smooth_page_indicator: ^1.2.1

@@ -17,6 +17,7 @@ import 'package:message_app/services/supabase_auth_service.dart';
 import 'package:message_app/services/supabase_message_service.dart';
 import 'package:message_app/services/supabase_storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -507,9 +508,15 @@ class _ChatSectionState extends State<_ChatSection> {
   }
 
   void _markMessagesAsSeen(List<_ChatMessage> messages) {
-    // Mark unread messages from others as seen (TODO: Implement in Supabase)
-    // For now, skip this functionality
-    // Will implement message_seen table later
+    // Mark unread messages from others as seen
+    for (final message in messages) {
+      // Only mark others' messages that haven't been seen
+      if (!message.isMe && !message.isSeen && message.id != null) {
+        _messageService.markAsRead(message.id!).catchError((error) {
+          debugPrint('❌ Mark as read error: $error');
+        });
+      }
+    }
   }
 
   Future<void> _handleSend() async {
@@ -830,8 +837,13 @@ class _ChatSectionState extends State<_ChatSection> {
         : _defaultExtensionFor(type);
 
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final finalFileName =
-        fileName ?? 'attachment_$timestamp.$effectiveExtension';
+
+    // Sanitize filename: remove Vietnamese diacritics and special chars
+    final baseName = fileName != null
+        ? _sanitizeFileName(fileName.replaceAll('.$effectiveExtension', ''))
+        : 'attachment_$timestamp';
+
+    final finalFileName = '${baseName}_$timestamp.$effectiveExtension';
 
     // Upload to Supabase Storage
     if (type == _AttachmentType.image || type == _AttachmentType.gif) {
@@ -919,13 +931,88 @@ class _ChatSectionState extends State<_ChatSection> {
     }
   }
 
-  void _toggleReaction(_ChatMessage message, String emoji) {
-    // TODO: Implement reactions with Supabase message_reactions table
-    debugPrint('❌ Reactions not yet implemented for Supabase');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reactions chưa được implement')),
-      );
+  void _toggleReaction(_ChatMessage message, String emoji) async {
+    if (message.id == null) return;
+
+    try {
+      final currentUserId = _authService.currentUser?.id;
+      if (currentUserId == null) return;
+
+      final hasReacted = message.reactions[emoji] == currentUserId;
+
+      if (hasReacted) {
+        // Remove reaction
+        await _messageService.removeReaction(
+          messageId: message.id!,
+          emoji: emoji,
+        );
+        debugPrint('✅ Removed reaction $emoji from message ${message.id}');
+      } else {
+        // Add reaction
+        await _messageService.addReaction(messageId: message.id!, emoji: emoji);
+        debugPrint('✅ Added reaction $emoji to message ${message.id}');
+      }
+    } catch (error) {
+      debugPrint('❌ Reaction error: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi reactions: $error')));
+      }
+    }
+  }
+
+  Future<void> _handleOpenAttachment(_ChatMessage message) async {
+    if (message.attachmentUrl == null) return;
+
+    try {
+      // Determine attachment type
+      final isImage =
+          message.attachmentType == _AttachmentType.image ||
+          message.attachmentType == _AttachmentType.gif;
+
+      if (isImage) {
+        // Open fullscreen image viewer
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FullscreenImageViewer(
+              imageUrl: message.attachmentUrl!,
+              fileName: message.fileName,
+            ),
+          ),
+        );
+        debugPrint('✅ Opened image viewer: ${message.attachmentUrl}');
+      } else if (message.attachmentType == _AttachmentType.file) {
+        // Show file preview dialog
+        await showDialog(
+          context: context,
+          builder: (context) => FilePreviewDialog(
+            fileUrl: message.attachmentUrl!,
+            fileName: message.fileName ?? 'File',
+            fileType: message.attachmentType?.name ?? 'file',
+          ),
+        );
+        debugPrint('✅ Opened file preview: ${message.attachmentUrl}');
+      } else {
+        // For voice messages or unknown types, open externally
+        final uri = Uri.parse(message.attachmentUrl!);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          debugPrint(
+            '✅ Opened attachment externally: ${message.attachmentUrl}',
+          );
+        } else {
+          throw 'Không thể mở file này';
+        }
+      }
+    } catch (error) {
+      debugPrint('❌ Open attachment error: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Không thể mở file: $error')));
+      }
     }
   }
 
@@ -1079,6 +1166,7 @@ class _ChatSectionState extends State<_ChatSection> {
                 onReaction: (message, emoji) => _toggleReaction(message, emoji),
                 currentUserId: _authService.currentUser?.id ?? 'anonymous',
                 searchQuery: widget.searchQuery,
+                onOpenAttachment: _handleOpenAttachment,
               );
             },
           ),
@@ -1212,6 +1300,7 @@ class _MessagesList extends StatelessWidget {
     required this.onForward,
     required this.onReaction,
     required this.currentUserId,
+    required this.onOpenAttachment,
     this.searchQuery = '',
   });
 
@@ -1223,6 +1312,7 @@ class _MessagesList extends StatelessWidget {
   final void Function(_ChatMessage, String emoji) onReaction;
   final String currentUserId;
   final String searchQuery;
+  final void Function(_ChatMessage message) onOpenAttachment;
 
   @override
   Widget build(BuildContext context) {
@@ -1275,6 +1365,7 @@ class _MessagesList extends StatelessWidget {
           onReaction: (emoji) => onReaction(message, emoji),
           currentUserId: currentUserId,
           searchQuery: searchQuery,
+          onOpenAttachment: onOpenAttachment,
         );
       },
     );
@@ -1702,13 +1793,14 @@ class _ActionIconButton extends StatelessWidget {
   }
 }
 
-class _ChatBubble extends StatelessWidget {
+class _ChatBubble extends StatefulWidget {
   const _ChatBubble({
     required this.message,
     required this.onReply,
     required this.onDelete,
     required this.onForward,
     required this.onReaction,
+    required this.onOpenAttachment,
     required this.currentUserId,
     this.searchQuery = '',
   });
@@ -1718,12 +1810,22 @@ class _ChatBubble extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onForward;
   final Function(String emoji) onReaction;
+  final Function(_ChatMessage message) onOpenAttachment;
   final String currentUserId;
   final String searchQuery;
 
   @override
+  State<_ChatBubble> createState() => _ChatBubbleState();
+}
+
+class _ChatBubbleState extends State<_ChatBubble> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
+    final message = widget.message;
     final isMe = message.isMe;
+    final searchQuery = widget.searchQuery;
     final alignment = isMe ? Alignment.centerRight : Alignment.centerLeft;
     final backgroundColor = isMe
         ? const Color(0xFFF6E8C9)
@@ -1788,22 +1890,25 @@ class _ChatBubble extends StatelessWidget {
 
     if (message.hasVisualAttachment) {
       content.add(
-        ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: CachedNetworkImage(
-            imageUrl: message.attachmentUrl!,
-            fit: BoxFit.cover,
-            placeholder: (context, _) => Container(
-              height: attachmentHeight,
-              color: Colors.black.withValues(alpha: 0.05),
-              alignment: Alignment.center,
-              child: const CircularProgressIndicator(strokeWidth: 2),
-            ),
-            errorWidget: (context, error, _) => Container(
-              height: attachmentHeight,
-              color: Colors.black.withValues(alpha: 0.05),
-              alignment: Alignment.center,
-              child: const Icon(Icons.broken_image_outlined),
+        GestureDetector(
+          onTap: () => widget.onOpenAttachment(message),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: CachedNetworkImage(
+              imageUrl: message.attachmentUrl!,
+              fit: BoxFit.cover,
+              placeholder: (context, _) => Container(
+                height: attachmentHeight,
+                color: Colors.black.withValues(alpha: 0.05),
+                alignment: Alignment.center,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              ),
+              errorWidget: (context, error, _) => Container(
+                height: attachmentHeight,
+                color: Colors.black.withValues(alpha: 0.05),
+                alignment: Alignment.center,
+                child: const Icon(Icons.broken_image_outlined),
+              ),
             ),
           ),
         ),
@@ -1818,27 +1923,32 @@ class _ChatBubble extends StatelessWidget {
       );
     } else if (message.attachmentType == _AttachmentType.file) {
       content.add(
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.insert_drive_file_outlined,
-              size: 20,
-              color: Color(0xFF2D2535),
-            ),
-            SizedBox(width: isCompact ? 6 : 8),
-            Flexible(
-              child: Text(
-                message.fileName ?? message.text ?? 'Tên tệp không xác định',
-                style: TextStyle(
-                  color: const Color(0xFF2D2535),
-                  fontSize: isCompact ? 13.0 : 14.0,
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
+        GestureDetector(
+          onTap: () => widget.onOpenAttachment(message),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.insert_drive_file_outlined,
+                size: 20,
+                color: Color(0xFF2D2535),
               ),
-            ),
-          ],
+              SizedBox(width: isCompact ? 6 : 8),
+              Flexible(
+                child: Text(
+                  message.fileName ?? message.text ?? 'Tên tệp không xác định',
+                  style: TextStyle(
+                    color: const Color(0xFF2D2535),
+                    fontSize: isCompact ? 13.0 : 14.0,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              SizedBox(width: isCompact ? 6 : 8),
+              Icon(Icons.download, size: 16, color: Colors.grey[600]),
+            ],
+          ),
         ),
       );
     }
@@ -1929,47 +2039,177 @@ class _ChatBubble extends StatelessWidget {
 
     return Align(
       alignment: alignment,
-      child: Column(
-        crossAxisAlignment: isMe
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          GestureDetector(
-            onLongPress: () {
-              _showMessageActions(context, message);
-            },
-            child: Container(
-              constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
-              padding: bubblePadding,
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                borderRadius: borderRadius,
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x08000000),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
+          // Avatar (left side for others, right side for me)
+          if (!isMe) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFFE4E6EB),
+                backgroundImage:
+                    message.senderAvatar != null &&
+                        message.senderAvatar!.isNotEmpty
+                    ? CachedNetworkImageProvider(message.senderAvatar!)
+                    : null,
+                child:
+                    message.senderAvatar == null ||
+                        message.senderAvatar!.isEmpty
+                    ? Text(
+                        (message.senderName?.isNotEmpty == true
+                                ? message.senderName!.substring(0, 1)
+                                : '?')
+                            .toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF65676B),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          // Chat bubble
+          Flexible(
+            child: Column(
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                MouseRegion(
+                  onEnter: (_) => setState(() => _isHovered = true),
+                  onExit: (_) => setState(() => _isHovered = false),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      GestureDetector(
+                        onLongPress: () {
+                          _showMessageActions(context, message);
+                        },
+                        child: Container(
+                          constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+                          padding: bubblePadding,
+                          decoration: BoxDecoration(
+                            color: backgroundColor,
+                            borderRadius: borderRadius,
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x08000000),
+                                blurRadius: 12,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: isMe
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: content,
+                          ),
+                        ),
+                      ),
+                      // Hover actions
+                      if (_isHovered)
+                        Positioned(
+                          top: -8,
+                          right: isMe ? 8 : null,
+                          left: isMe ? null : 8,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x1A000000),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _HoverActionButton(
+                                  icon: Icons.reply,
+                                  tooltip: 'Reply',
+                                  onPressed: widget.onReply,
+                                ),
+                                _HoverActionButton(
+                                  icon: Icons.forward,
+                                  tooltip: 'Forward',
+                                  onPressed: widget.onForward,
+                                ),
+                                _HoverActionButton(
+                                  icon: Icons.emoji_emotions_outlined,
+                                  tooltip: 'React',
+                                  onPressed: () =>
+                                      _showMessageActions(context, message),
+                                ),
+                                if (message.isMe)
+                                  _HoverActionButton(
+                                    icon: Icons.delete_outline,
+                                    tooltip: 'Delete',
+                                    onPressed: widget.onDelete,
+                                    color: Colors.red,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: isMe
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: content,
-              ),
+                ),
+                // Reaction display
+                if (message.reactions.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 8, right: 8),
+                    child: _ReactionDisplay(
+                      reactions: message.reactions,
+                      onTap: () => _showMessageActions(context, message),
+                    ),
+                  ),
+              ],
             ),
           ),
-          // Reaction display
-          if (message.reactions.isNotEmpty)
+          // Avatar for my messages (right side)
+          if (isMe) ...[
+            const SizedBox(width: 8),
             Padding(
-              padding: const EdgeInsets.only(top: 4, left: 8, right: 8),
-              child: _ReactionDisplay(
-                reactions: message.reactions,
-                onTap: () => _showMessageActions(context, message),
+              padding: const EdgeInsets.only(bottom: 4),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFFE4E6EB),
+                backgroundImage:
+                    message.senderAvatar != null &&
+                        message.senderAvatar!.isNotEmpty
+                    ? CachedNetworkImageProvider(message.senderAvatar!)
+                    : null,
+                child:
+                    message.senderAvatar == null ||
+                        message.senderAvatar!.isEmpty
+                    ? Text(
+                        (message.senderName?.isNotEmpty == true
+                                ? message.senderName!.substring(0, 1)
+                                : '?')
+                            .toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF65676B),
+                        ),
+                      )
+                    : null,
               ),
             ),
+          ],
         ],
       ),
     );
@@ -1991,11 +2231,12 @@ class _ChatBubble extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: ['❤️', '😂', '👍', '👎', '😮', '😢'].map((emoji) {
-                  final hasReacted = message.reactions[emoji] == currentUserId;
+                  final hasReacted =
+                      message.reactions[emoji] == widget.currentUserId;
                   return GestureDetector(
                     onTap: () {
                       Navigator.pop(context);
-                      onReaction(emoji);
+                      widget.onReaction(emoji);
                     },
                     child: Container(
                       padding: const EdgeInsets.all(8),
@@ -2040,7 +2281,7 @@ class _ChatBubble extends StatelessWidget {
               title: const Text('Reply'),
               onTap: () {
                 Navigator.pop(context);
-                onReply();
+                widget.onReply();
               },
             ),
             ListTile(
@@ -2048,7 +2289,7 @@ class _ChatBubble extends StatelessWidget {
               title: const Text('Forward'),
               onTap: () {
                 Navigator.pop(context);
-                onForward();
+                widget.onForward();
               },
             ),
             if (message.isMe)
@@ -2060,7 +2301,7 @@ class _ChatBubble extends StatelessWidget {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  onDelete();
+                  widget.onDelete();
                 },
               ),
           ],
@@ -2350,6 +2591,8 @@ class _ChatMessage {
     this.replyToSender,
     this.reactions = const {},
     this.isForwarded = false,
+    this.senderName,
+    this.senderAvatar,
   });
 
   final String? id;
@@ -2365,6 +2608,8 @@ class _ChatMessage {
   final String? replyToSender;
   final Map<String, String> reactions; // emoji -> userId mapping
   final bool isForwarded;
+  final String? senderName;
+  final String? senderAvatar;
 
   bool get hasVisualAttachment =>
       attachmentUrl != null &&
@@ -2397,10 +2642,21 @@ class _ChatMessage {
     }
 
     // Parse seen status (from message_seen table join)
-    final isSeen = data['is_seen'] == true;
+    final seenCount = data['seen_count'] as int? ?? 0;
+    final isSeen = seenCount > 0;
 
-    // Parse reactions (TODO: join with message_reactions table)
+    // Parse reactions (from message_reactions table join)
+    final reactionsData = data['reactions'] as Map<String, dynamic>? ?? {};
     final reactions = <String, String>{};
+    reactionsData.forEach((emoji, userId) {
+      reactions[emoji] = userId.toString();
+    });
+
+    final senderName = data['sender_name'] as String?;
+    final senderAvatar = data['sender_photo'] as String?;
+
+    // Debug log
+    debugPrint('📦 Message from: $senderName, avatar: $senderAvatar');
 
     return _ChatMessage(
       id: data['id'] as String?,
@@ -2412,10 +2668,12 @@ class _ChatMessage {
       timestamp: timestamp,
       isSeen: isSeen,
       replyToId: data['reply_to_id'] as String?,
-      replyToText: null, // TODO: join with replied message
-      replyToSender: null,
+      replyToText: data['reply_to_text'] as String?,
+      replyToSender: data['reply_to_sender'] as String?,
       reactions: reactions,
       isForwarded: data['is_forwarded'] as bool? ?? false,
+      senderName: senderName ?? 'Unknown',
+      senderAvatar: senderAvatar,
     );
   }
 }
@@ -2429,6 +2687,64 @@ String _extensionFromFileName(String? fileName) {
     return '';
   }
   return fileName.substring(dotIndex + 1);
+}
+
+/// Sanitize filename: remove Vietnamese diacritics and special characters
+/// Keep only: a-z, A-Z, 0-9, dash, underscore
+String _sanitizeFileName(String fileName) {
+  // Remove Vietnamese diacritics
+  const vietnameseMap = {
+    'à': 'a', 'á': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
+    'ă': 'a', 'ằ': 'a', 'ắ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
+    'â': 'a', 'ầ': 'a', 'ấ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
+    'đ': 'd',
+    'è': 'e', 'é': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
+    'ê': 'e', 'ề': 'e', 'ế': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
+    'ì': 'i', 'í': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
+    'ò': 'o', 'ó': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
+    'ô': 'o', 'ồ': 'o', 'ố': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+    'ơ': 'o', 'ờ': 'o', 'ớ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+    'ù': 'u', 'ú': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
+    'ư': 'u', 'ừ': 'u', 'ứ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
+    'ỳ': 'y', 'ý': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y',
+    // Uppercase
+    'À': 'A', 'Á': 'A', 'Ả': 'A', 'Ã': 'A', 'Ạ': 'A',
+    'Ă': 'A', 'Ằ': 'A', 'Ắ': 'A', 'Ẳ': 'A', 'Ẵ': 'A', 'Ặ': 'A',
+    'Â': 'A', 'Ầ': 'A', 'Ấ': 'A', 'Ẩ': 'A', 'Ẫ': 'A', 'Ậ': 'A',
+    'Đ': 'D',
+    'È': 'E', 'É': 'E', 'Ẻ': 'E', 'Ẽ': 'E', 'Ẹ': 'E',
+    'Ê': 'E', 'Ề': 'E', 'Ế': 'E', 'Ể': 'E', 'Ễ': 'E', 'Ệ': 'E',
+    'Ì': 'I', 'Í': 'I', 'Ỉ': 'I', 'Ĩ': 'I', 'Ị': 'I',
+    'Ò': 'O', 'Ó': 'O', 'Ỏ': 'O', 'Õ': 'O', 'Ọ': 'O',
+    'Ô': 'O', 'Ồ': 'O', 'Ố': 'O', 'Ổ': 'O', 'Ỗ': 'O', 'Ộ': 'O',
+    'Ơ': 'O', 'Ờ': 'O', 'Ớ': 'O', 'Ở': 'O', 'Ỡ': 'O', 'Ợ': 'O',
+    'Ù': 'U', 'Ú': 'U', 'Ủ': 'U', 'Ũ': 'U', 'Ụ': 'U',
+    'Ư': 'U', 'Ừ': 'U', 'Ứ': 'U', 'Ử': 'U', 'Ữ': 'U', 'Ự': 'U',
+    'Ỳ': 'Y', 'Ý': 'Y', 'Ỷ': 'Y', 'Ỹ': 'Y', 'Ỵ': 'Y',
+  };
+
+  var result = fileName;
+  vietnameseMap.forEach((key, value) {
+    result = result.replaceAll(key, value);
+  });
+
+  // Replace spaces with underscores and remove special characters
+  result = result
+      .replaceAll(' ', '_')
+      .replaceAll(
+        RegExp(r'[^\w\-.]'),
+        '',
+      ); // Keep only alphanumeric, dash, underscore, dot
+
+  // Remove multiple underscores/dashes
+  result = result.replaceAll(RegExp(r'[_\-]{2,}'), '_');
+
+  // Limit length to 100 characters
+  if (result.length > 100) {
+    result = result.substring(0, 100);
+  }
+
+  return result.isEmpty ? 'file' : result;
 }
 
 String _defaultExtensionFor(_AttachmentType type) {
@@ -2454,16 +2770,412 @@ String _formatTimestamp(DateTime timestamp) {
   final now = DateTime.now();
   final difference = now.difference(timestamp);
 
-  if (difference.inDays > 0) {
-    if (difference.inDays == 1) {
-      return 'Yesterday ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
-    }
-    return '${timestamp.day}/${timestamp.month} ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
-  } else if (difference.inHours > 0) {
-    return '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
-  } else if (difference.inMinutes > 0) {
-    return '${difference.inMinutes} min ago';
-  } else {
+  // Normalize dates to midnight for accurate day comparison
+  final today = DateTime(now.year, now.month, now.day);
+  final messageDate = DateTime(timestamp.year, timestamp.month, timestamp.day);
+  final daysDifference = today.difference(messageDate).inDays;
+
+  // Just now (< 1 minute)
+  if (difference.inSeconds < 60) {
     return 'Just now';
+  }
+
+  // X minutes ago (< 1 hour)
+  if (difference.inMinutes < 60) {
+    return '${difference.inMinutes} min ago';
+  }
+
+  // Today - show hours ago or time
+  if (daysDifference == 0) {
+    if (difference.inHours < 24) {
+      final hours = difference.inHours;
+      return '$hours ${hours == 1 ? 'hour' : 'hours'} ago';
+    }
+    return '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+  }
+
+  // Yesterday
+  if (daysDifference == 1) {
+    return 'Yesterday ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+  }
+
+  // This week (2-6 days ago) - show day name
+  if (daysDifference < 7) {
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dayName = weekdays[timestamp.weekday - 1];
+    return '$dayName ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+  }
+
+  // This year - show date without year
+  if (timestamp.year == now.year) {
+    return '${timestamp.day}/${timestamp.month} ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+  }
+
+  // Old messages - show full date with year
+  return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+}
+
+// ============================================================================
+// Fullscreen Image Viewer (like Messenger)
+// ============================================================================
+
+class FullscreenImageViewer extends StatefulWidget {
+  final String imageUrl;
+  final String? fileName;
+
+  const FullscreenImageViewer({
+    super.key,
+    required this.imageUrl,
+    this.fileName,
+  });
+
+  @override
+  State<FullscreenImageViewer> createState() => _FullscreenImageViewerState();
+}
+
+class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
+  final TransformationController _transformationController =
+      TransformationController();
+  TapDownDetails? _doubleTapDetails;
+
+  void _handleDoubleTapDown(TapDownDetails details) {
+    _doubleTapDetails = details;
+  }
+
+  void _handleDoubleTap() {
+    if (_transformationController.value != Matrix4.identity()) {
+      // Reset zoom
+      _transformationController.value = Matrix4.identity();
+    } else {
+      // Zoom to 2x at tap position
+      final position = _doubleTapDetails!.localPosition;
+      _transformationController.value = Matrix4.identity()
+        ..translate(-position.dx, -position.dy)
+        ..scale(2.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Image with pinch-to-zoom
+          GestureDetector(
+            onDoubleTapDown: _handleDoubleTapDown,
+            onDoubleTap: _handleDoubleTap,
+            child: Center(
+              child: InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: CachedNetworkImage(
+                  imageUrl: widget.imageUrl,
+                  fit: BoxFit.contain,
+                  placeholder: (context, url) => const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                  errorWidget: (context, url, error) => const Center(
+                    child: Icon(Icons.error, color: Colors.white, size: 48),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Top bar with close button
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                ),
+              ),
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top + 8,
+                left: 8,
+                right: 8,
+                bottom: 16,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  Expanded(
+                    child: Text(
+                      widget.fileName ?? 'Image',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.download,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    onPressed: () async {
+                      try {
+                        await launchUrl(
+                          Uri.parse(widget.imageUrl),
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Không thể tải xuống: $e')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// File Preview Dialog
+// ============================================================================
+
+class FilePreviewDialog extends StatelessWidget {
+  final String fileUrl;
+  final String fileName;
+  final String fileType;
+
+  const FilePreviewDialog({
+    super.key,
+    required this.fileUrl,
+    required this.fileName,
+    required this.fileType,
+  });
+
+  IconData _getFileIcon() {
+    final ext = fileName.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return Icons.folder_zip;
+      case 'mp3':
+      case 'wav':
+      case 'ogg':
+        return Icons.audio_file;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+        return Icons.video_file;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  Color _getFileColor() {
+    final ext = fileName.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'pdf':
+        return Colors.red;
+      case 'doc':
+      case 'docx':
+        return Colors.blue;
+      case 'xls':
+      case 'xlsx':
+        return Colors.green;
+      case 'ppt':
+      case 'pptx':
+        return Colors.orange;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return Colors.purple;
+      case 'mp3':
+      case 'wav':
+      case 'ogg':
+        return Colors.pink;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+        return Colors.indigo;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // File icon
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: _getFileColor().withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(_getFileIcon(), size: 48, color: _getFileColor()),
+            ),
+            const SizedBox(height: 16),
+
+            // File name
+            Text(
+              fileName,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+
+            // File type
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                fileName.split('.').last.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Đóng'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      try {
+                        await launchUrl(
+                          Uri.parse(fileUrl),
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Không thể mở: $e')),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Mở'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _getFileColor(),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Hover Action Button (for chat bubble hover menu)
+// ============================================================================
+
+class _HoverActionButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final Color? color;
+
+  const _HoverActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        icon: Icon(icon, size: 18),
+        color: color ?? Colors.grey[700],
+        onPressed: onPressed,
+        padding: const EdgeInsets.all(8),
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        splashRadius: 16,
+      ),
+    );
   }
 }
