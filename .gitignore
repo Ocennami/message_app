@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Security - DO NOT COMMIT credentials
+lib/config/r2_config.dart
+lib/config/supabase_config.dart
+.env
+.env.local
+*.key
+*.pem

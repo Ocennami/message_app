@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:message_app/services/supabase_auth_service.dart';
-import 'package:message_app/services/supabase_storage_service.dart';
+import 'package:message_app/services/unified_storage_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,7 +13,8 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _authService = SupabaseAuthService();
-  final _storageService = SupabaseStorageService();
+  final _storageService =
+      UnifiedStorageService(); // ✅ Sử dụng UnifiedStorageService để tận dụng R2
   final _imagePicker = ImagePicker();
 
   final _displayNameController = TextEditingController();

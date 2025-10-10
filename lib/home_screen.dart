@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';
 
@@ -13,9 +14,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart' if (dart.library.html) 'dart:core';
 import 'package:message_app/onboarding_screen.dart';
 import 'package:message_app/profile_screen.dart';
+import 'package:message_app/settings_screen.dart';
 import 'package:message_app/services/supabase_auth_service.dart';
 import 'package:message_app/services/supabase_message_service.dart';
-import 'package:message_app/services/supabase_storage_service.dart';
+import 'package:message_app/services/unified_storage_service.dart';
+import 'package:message_app/widget/discord_style_picker.dart';
+import 'package:message_app/widget/giphy_sdk_picker.dart';
+import 'package:giphy_get/giphy_get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -75,6 +80,7 @@ class _HomeHeader extends StatefulWidget {
 class _HomeHeaderState extends State<_HomeHeader> {
   bool _isSearching = false;
   final _searchController = TextEditingController();
+  final _authService = SupabaseAuthService();
 
   @override
   void dispose() {
@@ -90,6 +96,34 @@ class _HomeHeaderState extends State<_HomeHeader> {
         widget.onSearchChanged('');
       }
     });
+  }
+
+  Widget _buildUserAvatar(double size) {
+    final user = _authService.currentUser;
+    if (user == null) {
+      // Fallback avatar if not logged in
+      return Icon(
+        Icons.person,
+        size: size * 0.6,
+        color: const Color(0xFF7F7F88),
+      );
+    }
+
+    // Get avatar URL from user metadata or construct from Supabase storage
+    final userId = user.id;
+    final avatarUrl =
+        'https://hqurumleoygxrhkuvahg.supabase.co/storage/v1/object/public/avatars/$userId/$userId.jpg';
+
+    return CachedNetworkImage(
+      imageUrl: avatarUrl,
+      fit: BoxFit.cover,
+      placeholder: (context, url) =>
+          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      errorWidget: (context, url, error) {
+        // Fallback to default avatar if image load fails
+        return Image.asset('assets/images/OIP.jpg', fit: BoxFit.cover);
+      },
+    );
   }
 
   @override
@@ -198,24 +232,31 @@ class _HomeHeaderState extends State<_HomeHeader> {
                             color: const Color(0xFF2D2535),
                           ),
                           const SizedBox(width: 8),
-                          Container(
-                            width: avatarSize,
-                            height: avatarSize,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x11000000),
-                                  blurRadius: 10,
-                                  offset: Offset(0, 4),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ProfileScreen(),
                                 ),
-                              ],
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Image.asset(
-                              'assets/images/OIP.jpg',
-                              fit: BoxFit.cover,
+                              );
+                            },
+                            child: Container(
+                              width: avatarSize,
+                              height: avatarSize,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x11000000),
+                                    blurRadius: 10,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: _buildUserAvatar(avatarSize),
                             ),
                           ),
                         ],
@@ -234,93 +275,140 @@ class _AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = SupabaseAuthService();
-    final user = authService.currentUser;
-    final userEmail = user?.email ?? 'Guest';
-    final userName = authService.displayName;
-
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          UserAccountsDrawerHeader(
+          DrawerHeader(
             decoration: const BoxDecoration(color: Color(0xFFF2ECF7)),
-            accountName: Text(
-              userName,
-              style: const TextStyle(
-                color: Color(0xFF2D2535),
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-              ),
-            ),
-            accountEmail: Text(
-              userEmail,
-              style: const TextStyle(color: Color(0xFF7F7F88), fontSize: 14),
-            ),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: authService.photoUrl != null
-                  ? ClipOval(
-                      child: Image.network(
-                        authService.photoUrl!,
-                        fit: BoxFit.cover,
-                        width: 70,
-                        height: 70,
-                      ),
-                    )
-                  : Text(
-                      userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                      style: const TextStyle(
-                        fontSize: 32,
-                        color: Color(0xFF2D2535),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.chat_bubble, size: 64, color: Color(0xFF2D2535)),
+                SizedBox(height: 16),
+                Text(
+                  'Channels',
+                  style: TextStyle(
+                    color: Color(0xFF2D2535),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 24,
+                  ),
+                ),
+              ],
             ),
           ),
+          // Channel 1: Alliance Organization "v" (Main Channel)
           ListTile(
-            leading: const Icon(Icons.person_outline, color: Color(0xFF2D2535)),
-            title: const Text('Profile'),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2ECF7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.forum,
+                color: Color(0xFF2D2535),
+                size: 20,
+              ),
+            ),
+            title: const Text(
+              'Alliance Organization "v"',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: const Text(
+              'Main chat channel',
+              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2D2535),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Active',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            selected: true,
+            selectedTileColor: const Color(0xFFF2ECF7).withOpacity(0.3),
             onTap: () {
               Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              // Already in main channel, just close drawer
+            },
+          ),
+          // Channel 2: Call/Video Call
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2ECF7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.video_call,
+                color: Color(0xFF2D2535),
+                size: 20,
+              ),
+            ),
+            title: const Text(
+              'Call & Video',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: const Text(
+              'Voice and video calls',
+              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Soon',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Call & Video feature coming soon!'),
+                  duration: Duration(seconds: 2),
+                ),
               );
             },
           ),
+          const Divider(),
           ListTile(
             leading: const Icon(
               Icons.settings_outlined,
               color: Color(0xFF2D2535),
             ),
             title: const Text('Settings'),
+            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
             onTap: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Feature coming soon')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
             },
           ),
           ListTile(
-            leading: const Icon(
-              Icons.dark_mode_outlined,
-              color: Color(0xFF2D2535),
-            ),
-            title: const Text('Dark mode'),
-            trailing: Switch(
-              value: false,
-              onChanged: (value) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Function under development')),
-                );
-              },
-            ),
-          ),
-          const Divider(),
-          ListTile(
             leading: const Icon(Icons.help_outline, color: Color(0xFF2D2535)),
             title: const Text('Help & Support'),
+            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
             onTap: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
@@ -331,6 +419,7 @@ class _AppDrawer extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.info_outline, color: Color(0xFF2D2535)),
             title: const Text('About App'),
+            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
             onTap: () {
               Navigator.pop(context);
               showAboutDialog(
@@ -442,7 +531,7 @@ class _ChatSectionState extends State<_ChatSection> {
   final _imagePicker = ImagePicker();
   final _authService = SupabaseAuthService();
   final _messageService = SupabaseMessageService();
-  final _storageService = SupabaseStorageService();
+  final _storageService = UnifiedStorageService();
   AudioRecorder? _audioRecorder; // Nullable for platform compatibility
 
   final String _conversationId = 'common-channel';
@@ -520,15 +609,18 @@ class _ChatSectionState extends State<_ChatSection> {
   }
 
   Future<void> _handleSend() async {
-    final text = _textController.text.trim();
-    if (text.isEmpty || _isSending) {
+    if (_isSending) {
       return;
     }
+
+    final text = _textController.text.trim();
+    // If text is empty, send thumbs up as a quick reaction
+    final messageToSend = text.isEmpty ? '[REACTION:THUMBS_UP]' : text;
 
     _textController.clear();
     _updateTypingStatus(false); // Clear typing status when sending
     FocusScope.of(context).unfocus();
-    await _sendMessage(text: text);
+    await _sendMessage(text: messageToSend);
   }
 
   Future<void> _handlePickFile() async {
@@ -1516,7 +1608,7 @@ class _MessageInputBar extends StatelessWidget {
                     height: fieldHeight,
                     padding: fieldPadding,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2B2B33),
+                      color: const Color(0xFFE8E8E8),
                       borderRadius: BorderRadius.circular(isCompact ? 19 : 22),
                     ),
                     alignment: Alignment.center,
@@ -1527,11 +1619,14 @@ class _MessageInputBar extends StatelessWidget {
                           onSend();
                         }
                       },
-                      style: TextStyle(color: Colors.white, fontSize: textSize),
+                      style: TextStyle(
+                        color: const Color(0xFF2D2535),
+                        fontSize: textSize,
+                      ),
                       decoration: InputDecoration(
                         hintText: 'Aa',
                         hintStyle: TextStyle(
-                          color: const Color(0xFF7F7F88),
+                          color: const Color(0xFF9E9E9E),
                           fontSize: textSize,
                         ),
                         border: InputBorder.none,
@@ -1549,24 +1644,71 @@ class _MessageInputBar extends StatelessWidget {
                   onTap: isSending
                       ? null
                       : () async {
-                          // Show emoji picker
-                          final emoji = await showDialog<String>(
-                            context: context,
-                            builder: (context) => const _EmojiPickerDialog(),
-                          );
-                          if (emoji != null) {
-                            // Insert emoji at cursor position
-                            final text = controller.text;
-                            final selection = controller.selection;
-                            final newText = text.replaceRange(
-                              selection.start,
-                              selection.end,
-                              emoji,
+                          // Auto-detect platform: SDK for mobile, API for desktop
+                          final bool useSdk = GiphySdkPicker.isSupported;
+
+                          if (useSdk) {
+                            // Mobile: Use Giphy SDK (native UI) - Direct call
+                            // Detect platform and use correct SDK key
+                            String sdkKey;
+                            if (Platform.isAndroid) {
+                              sdkKey = 'DiWSeVYbFaWt7gOSzpHZhYaienaYVNfh';
+                            } else if (Platform.isIOS) {
+                              sdkKey = 'xFKEo5hPDXAvYztz8SdynHpnQtfRLcvn';
+                            } else {
+                              sdkKey = 'YOUR_SDK_KEY'; // Fallback
+                            }
+
+                            // Open Giphy picker directly (no wrapper UI)
+                            final gif = await GiphyGet.getGif(
+                              context: context,
+                              apiKey: sdkKey,
+                              lang: GiphyLanguage.english,
                             );
-                            controller.value = controller.value.copyWith(
-                              text: newText,
-                              selection: TextSelection.collapsed(
-                                offset: selection.start + emoji.length,
+
+                            // Handle selected GIF
+                            if (gif != null &&
+                                gif.images?.original?.url != null) {
+                              controller.text =
+                                  '[GIF:${gif.images!.original!.url}]';
+                              onSend();
+                            }
+                          } else {
+                            // Desktop/Web: Use API picker (current implementation)
+                            await showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (context) => DiscordStylePicker(
+                                onEmojiSelected: (emoji) {
+                                  // Insert emoji at cursor position
+                                  final text = controller.text;
+                                  final selection = controller.selection;
+                                  final newText = text.replaceRange(
+                                    selection.start,
+                                    selection.end,
+                                    emoji,
+                                  );
+                                  controller.value = controller.value.copyWith(
+                                    text: newText,
+                                    selection: TextSelection.collapsed(
+                                      offset: selection.start + emoji.length,
+                                    ),
+                                  );
+                                  Navigator.pop(context);
+                                },
+                                onGifSelected: (gifUrl) {
+                                  // Send GIF as special message
+                                  controller.text = '[GIF:$gifUrl]';
+                                  Navigator.pop(context);
+                                  onSend();
+                                },
+                                onStickerSelected: (sticker) {
+                                  // Send sticker
+                                  controller.text = sticker;
+                                  Navigator.pop(context);
+                                  onSend();
+                                },
                               ),
                             );
                           }
@@ -1622,7 +1764,12 @@ class _SendButton extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: sidePadding),
       child: InkWell(
-        onTap: isSending ? null : onSend,
+        onTap: isSending
+            ? null
+            : () async {
+                // Send thumbs up when clicked
+                await onSend();
+              },
         borderRadius: borderRadius,
         child: Ink(
           width: buttonWidth,
@@ -1643,88 +1790,6 @@ class _SendButton extends StatelessWidget {
                   )
                 : Icon(Icons.thumb_up, color: color, size: iconSize),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmojiPickerDialog extends StatelessWidget {
-  const _EmojiPickerDialog();
-
-  static const _emojis = [
-    '😀',
-    '😁',
-    '😂',
-    '🤣',
-    '😊',
-    '😍',
-    '😘',
-    '😎',
-    '🤔',
-    '😢',
-    '😭',
-    '😡',
-    '👍',
-    '👎',
-    '👏',
-    '🙏',
-    '🔥',
-    '❤️',
-    '💯',
-    '🎉',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Chọn emoji',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-            const Divider(),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 8,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                ),
-                itemCount: _emojis.length,
-                itemBuilder: (context, index) {
-                  final emoji = _emojis[index];
-                  return InkWell(
-                    onTap: () => Navigator.pop(context, emoji),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.grey.withValues(alpha: 0.1),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(emoji, style: const TextStyle(fontSize: 24)),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -1982,8 +2047,134 @@ class _ChatBubbleState extends State<_ChatBubble> {
         content.add(SizedBox(height: textSpacing));
       }
 
+      // Check if it's a GIF
+      if (message.text!.startsWith('[GIF:')) {
+        final gifUrl = message.text!.substring(5, message.text!.length - 1);
+        content.add(
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CachedNetworkImage(
+              imageUrl: gifUrl,
+              width: isCompact ? 180 : 220,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                width: isCompact ? 180 : 220,
+                height: 150,
+                color: Colors.grey[200],
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              errorWidget: (context, url, error) => Container(
+                width: isCompact ? 180 : 220,
+                height: 150,
+                color: Colors.grey[200],
+                child: const Icon(Icons.error),
+              ),
+            ),
+          ),
+        );
+      }
+      // Check if it's a custom emoji
+      else if (message.text!.startsWith('[CUSTOM_EMOJI:')) {
+        final base64Data = message.text!.substring(
+          14,
+          message.text!.length - 1,
+        );
+        try {
+          final bytes = base64Decode(base64Data);
+          content.add(
+            Image.memory(
+              bytes,
+              width: 32,
+              height: 32,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.emoji_emotions, size: 32),
+            ),
+          );
+        } catch (e) {
+          content.add(const Icon(Icons.emoji_emotions, size: 32));
+        }
+      }
+      // Check if it's a custom sticker
+      else if (message.text!.startsWith('[CUSTOM_STICKER:')) {
+        final base64Data = message.text!.substring(
+          16,
+          message.text!.length - 1,
+        );
+        try {
+          final bytes = base64Decode(base64Data);
+          content.add(
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(
+                bytes,
+                width: isCompact ? 100 : 120,
+                height: isCompact ? 100 : 120,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: isCompact ? 100 : 120,
+                  height: isCompact ? 100 : 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.sticky_note_2),
+                ),
+              ),
+            ),
+          );
+        } catch (e) {
+          content.add(
+            Container(
+              width: isCompact ? 100 : 120,
+              height: isCompact ? 100 : 120,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.sticky_note_2),
+            ),
+          );
+        }
+      }
+      // Check if it's a quick reaction
+      else if (message.text!.startsWith('[REACTION:')) {
+        final reactionType = message.text!
+            .replaceAll('[REACTION:', '')
+            .replaceAll(']', '');
+
+        // Display large icon for reaction
+        IconData reactionIcon;
+        Color reactionColor;
+
+        switch (reactionType) {
+          case 'THUMBS_UP':
+            reactionIcon = Icons.thumb_up;
+            reactionColor = const Color(0xFF2196F3);
+            break;
+          case 'HEART':
+            reactionIcon = Icons.favorite;
+            reactionColor = Colors.red;
+            break;
+          case 'LAUGH':
+            reactionIcon = Icons.mood;
+            reactionColor = Colors.orange;
+            break;
+          default:
+            reactionIcon = Icons.thumb_up;
+            reactionColor = const Color(0xFF2196F3);
+        }
+
+        content.add(
+          Icon(
+            reactionIcon,
+            size: isCompact ? 48.0 : 64.0,
+            color: reactionColor,
+          ),
+        );
+      }
       // Highlight search query in text
-      if (searchQuery.isNotEmpty &&
+      else if (searchQuery.isNotEmpty &&
           message.text!.toLowerCase().contains(searchQuery.toLowerCase())) {
         content.add(
           _HighlightedText(
