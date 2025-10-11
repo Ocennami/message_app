@@ -1,0 +1,32 @@
+/// Giphy API Configuration TEMPLATE
+/// 
+/// SETUP INSTRUCTIONS:
+/// 1. Copy this file to: lib/config/giphy_config.dart
+/// 2. Go to https://developers.giphy.com/dashboard/
+/// 3. Create 3 apps and get keys
+/// 4. Replace placeholder keys below with your real keys
+/// 5. DO NOT commit lib/config/giphy_config.dart to GitHub!
+
+class GiphyConfig {
+  // ========================================
+  // REPLACE WITH YOUR REAL GIPHY KEYS
+  // ========================================
+
+  /// Giphy API Key for Desktop/Web
+  /// Type: API
+  /// Platform: Windows, Web, Linux, macOS
+  /// Get from: https://developers.giphy.com/dashboard/ → Create App → API
+  static const String apiKey = 'YOUR_GIPHY_API_KEY_HERE';
+
+  /// Giphy SDK Key for Android
+  /// Type: Android SDK
+  /// Platform: Android only
+  /// Get from: https://developers.giphy.com/dashboard/ → Create App → Android SDK
+  static const String androidSdkKey = 'YOUR_ANDROID_SDK_KEY_HERE';
+
+  /// Giphy SDK Key for iOS
+  /// Type: iOS SDK
+  /// Platform: iOS only
+  /// Get from: https://developers.giphy.com/dashboard/ → Create App → iOS SDK
+  static const String iosSdkKey = 'YOUR_IOS_SDK_KEY_HERE';
+}

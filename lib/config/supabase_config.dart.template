@@ -1,0 +1,51 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Supabase Configuration Template
+///
+/// SETUP INSTRUCTIONS:
+/// 1. Copy this file: cp supabase_config.dart.template supabase_config.dart
+/// 2. Go to: https://supabase.com/dashboard
+/// 3. Select your project
+/// 4. Go to Settings → API
+/// 5. Copy the values below
+/// 6. NEVER commit supabase_config.dart to Git!
+
+class SupabaseConfig {
+  // ⚠️ REPLACE WITH YOUR ACTUAL VALUES
+  
+  /// Your Supabase Project URL
+  /// Example: https://abcdefgh.supabase.co
+  static const String supabaseUrl = 'YOUR_SUPABASE_PROJECT_URL';
+  
+  /// Supabase Anonymous Key (public, safe for client)
+  /// Starts with: eyJ...
+  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+
+  /// Supabase Service Role Key (secret, admin access)
+  /// ONLY use this for backend/migration scripts
+  /// Starts with: eyJ...
+  static const String supabaseServiceRoleKey = 'YOUR_SUPABASE_SERVICE_ROLE_KEY';
+
+  /// Initialize Supabase
+  static Future<void> initialize() async {
+    await Supabase.initialize(
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+      debug: true, // Set to false in production
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+      ),
+    );
+  }
+
+  /// Get Supabase client
+  static SupabaseClient get client => Supabase.instance.client;
+
+  /// Get authenticated user ID
+  static String? get currentUserId =>
+      Supabase.instance.client.auth.currentUser?.id;
+
+  /// Check if user is authenticated
+  static bool get isAuthenticated =>
+      Supabase.instance.client.auth.currentUser != null;
+}

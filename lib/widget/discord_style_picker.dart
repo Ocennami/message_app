@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:message_app/config/giphy_config.dart';
 
 /// Giphy GIF/Sticker model
 class GiphyGif {
@@ -54,8 +55,8 @@ class _DiscordStylePickerState extends State<DiscordStylePicker>
   final _stickerSearchController = TextEditingController();
 
   // Giphy API - Get your free key at https://developers.giphy.com
-  // Using public beta key for demo (get your own for production!)
-  static const _giphyApiKey = 'o4Y38nznOmcsuDU1bAvr2SINfg9vQPhy';
+  // Key is stored in lib/config/giphy_config.dart (not committed to GitHub)
+  static const _giphyApiKey = GiphyConfig.apiKey;
 
   List<GiphyGif> _gifResults = [];
   List<GiphyGif> _stickerResults = [];

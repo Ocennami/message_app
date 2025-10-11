@@ -47,6 +47,7 @@ app.*.map.json
 # Security - DO NOT COMMIT credentials
 lib/config/r2_config.dart
 lib/config/supabase_config.dart
+lib/config/giphy_config.dart
 .env
 .env.local
 *.key

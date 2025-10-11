@@ -20,6 +20,7 @@ import 'package:message_app/services/supabase_message_service.dart';
 import 'package:message_app/services/unified_storage_service.dart';
 import 'package:message_app/widget/discord_style_picker.dart';
 import 'package:message_app/widget/giphy_sdk_picker.dart';
+import 'package:message_app/config/giphy_config.dart';
 import 'package:giphy_get/giphy_get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1649,14 +1650,15 @@ class _MessageInputBar extends StatelessWidget {
 
                           if (useSdk) {
                             // Mobile: Use Giphy SDK (native UI) - Direct call
-                            // Detect platform and use correct SDK key
+                            // Keys stored in lib/config/giphy_config.dart (not committed to GitHub)
                             String sdkKey;
                             if (Platform.isAndroid) {
-                              sdkKey = 'DiWSeVYbFaWt7gOSzpHZhYaienaYVNfh';
+                              sdkKey = GiphyConfig.androidSdkKey;
                             } else if (Platform.isIOS) {
-                              sdkKey = 'xFKEo5hPDXAvYztz8SdynHpnQtfRLcvn';
+                              sdkKey = GiphyConfig.iosSdkKey;
                             } else {
-                              sdkKey = 'YOUR_SDK_KEY'; // Fallback
+                              sdkKey =
+                                  GiphyConfig.apiKey; // Fallback to API key
                             }
 
                             // Open Giphy picker directly (no wrapper UI)
