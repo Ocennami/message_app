@@ -1,8 +1,8 @@
 # 💬 Message App - Group Chat Application
 
-**MessageApp** by Oceanami - A real-time group chat application built with Flutter and **Supabase**.
+**MessageApp** by Oceanami - A real-time group chat application built with Flutter and **Supabase** (with Firebase for notifications).
 
-> **⚡ Recently Migrated:** This project has been fully migrated from Firebase to Supabase (October 2025). See `MIGRATION_COMPLETE.md` for details.
+> **⚡ Migration Status:** This project uses Supabase as primary backend and Firebase for push notifications.
 
 ## 📱 Overview
 
@@ -50,6 +50,8 @@ This is a **single-room group chat application** designed for teams, families, o
 
 - **Frontend**: Flutter 3.9.0+ with Dart
 - **Backend**: Supabase (Auth, PostgreSQL, Storage, Realtime)
+- **Storage**: Cloudflare R2 (S3-compatible via MinIO)
+- **Notifications**: Firebase Cloud Messaging (FCM)
 - **State Management**: Provider pattern with StreamBuilder
 - **Audio**: record ^6.1.2 (mobile), audioplayers ^6.1.0
 - **Images**: image_picker, flutter_image_compress, cached_network_image
@@ -124,7 +126,11 @@ lib/
    flutter run -d chrome
    ```
 
-## 🔧 Configuration
+## � User Guide
+
+For detailed user instructions in Vietnamese, see `USER_GUIDE.md`.
+
+## �🔧 Configuration
 
 ### Supabase Setup
 
@@ -147,9 +153,10 @@ lib/
 
 ```yaml
 dependencies:
-  supabase_flutter: ^2.0.0
-  firebase_storage: ^13.0.1
-  firebase_messaging: ^16.0.1
+  supabase_flutter: ^2.5.0
+  firebase_core: ^3.8.1
+  firebase_messaging: ^15.2.1
+  minio: ^3.5.8 # Cloudflare R2 storage
   record: ^6.1.2
   audioplayers: ^6.1.0
   image_picker: ^1.2.0
@@ -203,7 +210,7 @@ This project is created by Oceanami for educational purposes.
 
 - **Developer**: Oceanami
 - **Framework**: Flutter by Google
-- **Backend**: Firebase by Google
+- **Backend**: Supabase (primary database & auth) and Firebase (push notifications)
 
 ## 📞 Support
 
@@ -215,4 +222,4 @@ For issues and feature requests, please contact the development team.
 
 **Version**: 1.0.0+1
 
-**Last Updated**: October 11, 2025
+**Last Updated**: October 13, 2025
