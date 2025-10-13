@@ -1,3 +1,11 @@
 {
-  "cmake.ignoreCMakeListsMissing": true
+  "cmake.ignoreCMakeListsMissing": true,
+  "java.configuration.updateBuildConfiguration": "interactive",
+
+  // Ignore TypeScript errors in Supabase Edge Functions (Deno runtime)
+  "typescript.validate.enable": true,
+  "files.exclude": {
+    "**/.dart_tool": true,
+    "**/.git": true
+  }
 }

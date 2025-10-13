@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- File: android/app/src/main/res/xml/shortcuts.xml -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 🔥 Shortcut cho chat bubble -->
+    <shortcut
+        android:shortcutId="chat_shortcut"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/chat_short_label"
+        android:shortcutLongLabel="@string/chat_long_label">
+        
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.message_app"
+            android:targetClass="com.example.message_app.MainActivity" />
+            
+        <!-- 🔥 Cho phép shortcut này được dùng cho bubbles -->
+        <categories android:name="android.shortcut.conversation" />
+        
+        <!-- 🔥 Người dùng -->
+        <capability-binding android:key="actions.intent.SEND_MESSAGE">
+            <parameter
+                android:name="message.recipient"
+                android:key="@string/chat_recipient_key" />
+        </capability-binding>
+    </shortcut>
+</shortcuts>

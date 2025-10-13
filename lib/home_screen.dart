@@ -18,10 +18,10 @@ import 'package:message_app/settings_screen.dart';
 import 'package:message_app/services/supabase_auth_service.dart';
 import 'package:message_app/services/supabase_message_service.dart';
 import 'package:message_app/services/unified_storage_service.dart';
+import 'package:message_app/services/presence_service.dart';
+import 'package:message_app/services/notification_service.dart';
 import 'package:message_app/widget/discord_style_picker.dart';
-import 'package:message_app/widget/giphy_sdk_picker.dart';
-import 'package:message_app/config/giphy_config.dart';
-import 'package:giphy_get/giphy_get.dart';
+import 'package:message_app/widget/background_settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -201,12 +201,50 @@ class _HomeHeaderState extends State<_HomeHeader> {
               else
                 Align(
                   alignment: Alignment.center,
-                  child: Text(
-                    'Alliance Organization "v"',
-                    style: titleStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
+                  child: StreamBuilder<Map<String, UserPresence>>(
+                    stream: PresenceService().presenceStream,
+                    builder: (context, snapshot) {
+                      final presences = snapshot.data ?? {};
+                      final onlineCount = presences.values
+                          .where((p) => p.isOnline)
+                          .length;
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Alliance Organization "v"',
+                            style: titleStyle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                          if (onlineCount > 0)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF44B700),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$onlineCount online',
+                                  style: TextStyle(
+                                    fontSize: isCompact ? 10 : 11,
+                                    color: const Color(0xFF44B700),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               Align(
@@ -507,7 +545,7 @@ class _AppDrawer extends StatelessWidget {
   }
 }
 
-enum _AttachmentType { image, gif, file, voice }
+enum _AttachmentType { image, file, voice }
 
 // Use SupabaseAuth to get current user ID
 String get _currentUserId {
@@ -567,6 +605,9 @@ class _ChatSectionState extends State<_ChatSection> {
 
     // Listen to text changes to update typing status
     _textController.addListener(_onTextChanged);
+
+    // Reset unread count when user opens chat
+    NotificationService().resetUnreadCount();
   }
 
   @override
@@ -683,35 +724,6 @@ class _ChatSectionState extends State<_ChatSection> {
       );
     } catch (error) {
       _showSnack('Không thể chọn ảnh: ');
-    }
-  }
-
-  Future<void> _handlePickGif() async {
-    if (_isSending) return;
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['gif'],
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) {
-        return;
-      }
-
-      final file = result.files.single;
-      final bytes = file.bytes;
-      if (bytes == null) {
-        _showSnack('Không thể lấy dữ liệu GIF.');
-        return;
-      }
-
-      await _sendMessage(
-        attachmentType: _AttachmentType.gif,
-        attachmentBytes: bytes,
-        fileName: file.name,
-      );
-    } catch (error) {
-      _showSnack('Không thể chọn GIF: ');
     }
   }
 
@@ -939,7 +951,7 @@ class _ChatSectionState extends State<_ChatSection> {
     final finalFileName = '${baseName}_$timestamp.$effectiveExtension';
 
     // Upload to Supabase Storage
-    if (type == _AttachmentType.image || type == _AttachmentType.gif) {
+    if (type == _AttachmentType.image) {
       return await _storageService.uploadImage(
         userId: _currentUserId,
         fileName: finalFileName,
@@ -1060,9 +1072,7 @@ class _ChatSectionState extends State<_ChatSection> {
 
     try {
       // Determine attachment type
-      final isImage =
-          message.attachmentType == _AttachmentType.image ||
-          message.attachmentType == _AttachmentType.gif;
+      final isImage = message.attachmentType == _AttachmentType.image;
 
       if (isImage) {
         // Open fullscreen image viewer
@@ -1144,242 +1154,278 @@ class _ChatSectionState extends State<_ChatSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _messageService.getMessagesStream(
+    // Wrap with GestureDetector for long press background settings (Mobile only)
+    return GestureDetector(
+      onLongPress: () {
+        // Show background settings dialog on mobile
+        if (Theme.of(context).platform == TargetPlatform.android ||
+            Theme.of(context).platform == TargetPlatform.iOS) {
+          showDialog(
+            context: context,
+            builder: (context) => const BackgroundSettingsDialog(),
+          );
+        }
+      },
+      child: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _messageService.getMessagesStream(
+                conversationId: _conversationId,
+              ),
+              builder: (context, snapshot) {
+                // Debug logs
+                debugPrint(
+                  'Supabase Stream connection state: ${snapshot.connectionState}',
+                );
+                debugPrint('Has error: ${snapshot.hasError}');
+                debugPrint('Has data: ${snapshot.hasData}');
+                debugPrint('Messages count: ${snapshot.data?.length ?? 0}');
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading messages:\n${snapshot.error}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Show loading spinner while waiting for initial data
+                final bool showLoading =
+                    snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData;
+
+                if (showLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                // Get messages from Supabase stream
+                final messagesData = snapshot.data ?? [];
+                var messages = messagesData
+                    .map(
+                      (data) => _ChatMessage.fromSupabaseData(
+                        data,
+                        currentUserId: _currentUserId,
+                      ),
+                    )
+                    .toList();
+
+                // Filter messages based on search query
+                if (widget.searchQuery.isNotEmpty) {
+                  final query = widget.searchQuery.toLowerCase();
+                  messages = messages.where((message) {
+                    final text = message.text?.toLowerCase() ?? '';
+                    final fileName = message.fileName?.toLowerCase() ?? '';
+                    return text.contains(query) || fileName.contains(query);
+                  }).toList();
+                }
+
+                if (messages.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          widget.searchQuery.isEmpty
+                              ? Icons.chat_bubble_outline
+                              : Icons.search_off,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          widget.searchQuery.isEmpty
+                              ? 'No messages yet.\nStart a conversation!'
+                              : 'No messages found.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (widget.searchQuery.isEmpty) {
+                    _scrollToBottom();
+                    _markMessagesAsSeen(messages);
+                  }
+                });
+
+                return _MessagesList(
+                  controller: _scrollController,
+                  messages: messages,
+                  onReply: (message) {
+                    setState(() {
+                      _replyingTo = message;
+                    });
+                  },
+                  onDelete: (message) => _handleDeleteMessage(message),
+                  onForward: (message) => _handleForwardMessage(message),
+                  onReaction: (message, emoji) =>
+                      _toggleReaction(message, emoji),
+                  currentUserId: _authService.currentUser?.id ?? 'anonymous',
+                  searchQuery: widget.searchQuery,
+                  onOpenAttachment: _handleOpenAttachment,
+                );
+              },
+            ),
+          ),
+          // Typing indicator (Supabase)
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _messageService.getTypingUsersStream(
               conversationId: _conversationId,
             ),
             builder: (context, snapshot) {
-              // Debug logs
-              debugPrint(
-                'Supabase Stream connection state: ${snapshot.connectionState}',
-              );
-              debugPrint('Has error: ${snapshot.hasError}');
-              debugPrint('Has data: ${snapshot.hasData}');
-              debugPrint('Messages count: ${snapshot.data?.length ?? 0}');
+              final typingUsers = snapshot.data ?? [];
 
-              if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.red,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error loading messages:\n${snapshot.error}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              // Show loading spinner while waiting for initial data
-              final bool showLoading =
-                  snapshot.connectionState == ConnectionState.waiting &&
-                  !snapshot.hasData;
-
-              if (showLoading) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              // Get messages from Supabase stream
-              final messagesData = snapshot.data ?? [];
-              var messages = messagesData
-                  .map(
-                    (data) => _ChatMessage.fromSupabaseData(
-                      data,
-                      currentUserId: _currentUserId,
-                    ),
-                  )
+              // Filter out current user
+              final othersTyping = typingUsers
+                  .where((user) => user['user_id'] != _currentUserId)
                   .toList();
 
-              // Filter messages based on search query
-              if (widget.searchQuery.isNotEmpty) {
-                final query = widget.searchQuery.toLowerCase();
-                messages = messages.where((message) {
-                  final text = message.text?.toLowerCase() ?? '';
-                  final fileName = message.fileName?.toLowerCase() ?? '';
-                  return text.contains(query) || fileName.contains(query);
-                }).toList();
+              if (othersTyping.isEmpty) {
+                return const SizedBox.shrink();
               }
 
-              if (messages.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        widget.searchQuery.isEmpty
-                            ? Icons.chat_bubble_outline
-                            : Icons.search_off,
-                        size: 64,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        widget.searchQuery.isEmpty
-                            ? 'No messages yet.\nStart a conversation!'
-                            : 'No messages found.',
-                        textAlign: TextAlign.center,
+              // Build typing indicator with user names
+              final typingNames = othersTyping
+                  .map((user) {
+                    // Try to get display name from user data
+                    final userName = user['display_name'] as String?;
+                    final userEmail = user['email'] as String?;
+                    return userName ?? userEmail ?? 'Someone';
+                  })
+                  .take(3) // Show max 3 names
+                  .join(', ');
+
+              final typingText = othersTyping.length == 1
+                  ? '$typingNames đang nhập...'
+                  : othersTyping.length == 2
+                  ? '$typingNames đang nhập...'
+                  : '${typingNames} và ${othersTyping.length - 3} người khác đang nhập...';
+
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        typingText,
                         style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey.shade600,
+                          color: Colors.grey[600],
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.grey[600]!,
                         ),
                       ),
-                    ],
-                  ),
-                );
-              }
-
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (widget.searchQuery.isEmpty) {
-                  _scrollToBottom();
-                  _markMessagesAsSeen(messages);
-                }
-              });
-
-              return _MessagesList(
-                controller: _scrollController,
-                messages: messages,
-                onReply: (message) {
-                  setState(() {
-                    _replyingTo = message;
-                  });
-                },
-                onDelete: (message) => _handleDeleteMessage(message),
-                onForward: (message) => _handleForwardMessage(message),
-                onReaction: (message, emoji) => _toggleReaction(message, emoji),
-                currentUserId: _authService.currentUser?.id ?? 'anonymous',
-                searchQuery: widget.searchQuery,
-                onOpenAttachment: _handleOpenAttachment,
+                    ),
+                  ],
+                ),
               );
             },
           ),
-        ),
-        // Typing indicator (Supabase)
-        StreamBuilder<List<Map<String, dynamic>>>(
-          stream: _messageService.getTypingUsersStream(
-            conversationId: _conversationId,
-          ),
-          builder: (context, snapshot) {
-            final typingUsers = snapshot.data ?? [];
-
-            // Filter out current user
-            final othersTyping = typingUsers
-                .where((user) => user['user_id'] != _currentUserId)
-                .toList();
-
-            if (othersTyping.isEmpty) {
-              return const SizedBox.shrink();
-            }
-
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          // Reply preview banner
+          if (_replyingTo != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2ECF7),
+                border: Border(
+                  top: BorderSide(color: Colors.grey[300]!, width: 1),
+                ),
+              ),
               child: Row(
                 children: [
-                  Text(
-                    'Đang nhập...',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic,
+                  Container(
+                    width: 3,
+                    height: 40,
+                    color: const Color(0xFF1877F2),
+                    margin: const EdgeInsets.only(right: 12),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Đang trả lời ${_replyingTo!.isMe ? "chính mình" : "người khác"}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: Color(0xFF1877F2),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _replyingTo!.text ?? 'Attachment',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF7F7F88),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Colors.grey[600]!,
-                      ),
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () {
+                      setState(() {
+                        _replyingTo = null;
+                      });
+                    },
                   ),
                 ],
               ),
-            );
-          },
-        ),
-        // Reply preview banner
-        if (_replyingTo != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF2ECF7),
-              border: Border(
-                top: BorderSide(color: Colors.grey[300]!, width: 1),
-              ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 3,
-                  height: 40,
-                  color: const Color(0xFF1877F2),
-                  margin: const EdgeInsets.only(right: 12),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Đang trả lời ${_replyingTo!.isMe ? "chính mình" : "người khác"}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                          color: Color(0xFF1877F2),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _replyingTo!.text ?? 'Attachment',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF7F7F88),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () {
-                    setState(() {
-                      _replyingTo = null;
-                    });
-                  },
-                ),
-              ],
-            ),
+          _MessageInputBar(
+            controller: _textController,
+            onSend: _handleSend,
+            onAddFile: _handlePickFile,
+            onPickImage: _handlePickImage,
+            onChangeTheme: _handleChangeAccent,
+            onStartRecording: _handleStartRecording,
+            onStopRecording: _handleStopRecording,
+            onCancelRecording: _handleCancelRecording,
+            accentColor: _accentColor,
+            isSending: _isSending,
+            isRecording: _isRecording,
+            recordDuration: _recordDuration,
+            isVoiceSupported: _isVoiceSupported,
           ),
-        _MessageInputBar(
-          controller: _textController,
-          onSend: _handleSend,
-          onAddFile: _handlePickFile,
-          onPickImage: _handlePickImage,
-          onPickGif: _handlePickGif,
-          onChangeTheme: _handleChangeAccent,
-          onStartRecording: _handleStartRecording,
-          onStopRecording: _handleStopRecording,
-          onCancelRecording: _handleCancelRecording,
-          accentColor: _accentColor,
-          isSending: _isSending,
-          isRecording: _isRecording,
-          recordDuration: _recordDuration,
-          isVoiceSupported: _isVoiceSupported,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1471,7 +1517,6 @@ class _MessageInputBar extends StatelessWidget {
     required this.onSend,
     required this.onAddFile,
     required this.onPickImage,
-    required this.onPickGif,
     required this.onChangeTheme,
     required this.onStartRecording,
     required this.onStopRecording,
@@ -1487,7 +1532,6 @@ class _MessageInputBar extends StatelessWidget {
   final Future<void> Function() onSend;
   final Future<void> Function() onAddFile;
   final Future<void> Function() onPickImage;
-  final Future<void> Function() onPickGif;
   final Future<void> Function() onChangeTheme;
   final Future<void> Function() onStartRecording;
   final Future<void> Function() onStopRecording;
@@ -1598,11 +1642,6 @@ class _MessageInputBar extends StatelessWidget {
                   color: accentColor,
                   onTap: isSending ? null : onChangeTheme,
                 ),
-                _ActionIconButton.text(
-                  label: 'GIF',
-                  color: accentColor,
-                  onTap: isSending ? null : onPickGif,
-                ),
                 SizedBox(width: gap),
                 Expanded(
                   child: Container(
@@ -1645,75 +1684,43 @@ class _MessageInputBar extends StatelessWidget {
                   onTap: isSending
                       ? null
                       : () async {
-                          // Auto-detect platform: SDK for mobile, API for desktop
-                          final bool useSdk = GiphySdkPicker.isSupported;
-
-                          if (useSdk) {
-                            // Mobile: Use Giphy SDK (native UI) - Direct call
-                            // Keys stored in lib/config/giphy_config.dart (not committed to GitHub)
-                            String sdkKey;
-                            if (Platform.isAndroid) {
-                              sdkKey = GiphyConfig.androidSdkKey;
-                            } else if (Platform.isIOS) {
-                              sdkKey = GiphyConfig.iosSdkKey;
-                            } else {
-                              sdkKey =
-                                  GiphyConfig.apiKey; // Fallback to API key
-                            }
-
-                            // Open Giphy picker directly (no wrapper UI)
-                            final gif = await GiphyGet.getGif(
-                              context: context,
-                              apiKey: sdkKey,
-                              lang: GiphyLanguage.english,
-                            );
-
-                            // Handle selected GIF
-                            if (gif != null &&
-                                gif.images?.original?.url != null) {
-                              controller.text =
-                                  '[GIF:${gif.images!.original!.url}]';
-                              onSend();
-                            }
-                          } else {
-                            // Desktop/Web: Use API picker (current implementation)
-                            await showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) => DiscordStylePicker(
-                                onEmojiSelected: (emoji) {
-                                  // Insert emoji at cursor position
-                                  final text = controller.text;
-                                  final selection = controller.selection;
-                                  final newText = text.replaceRange(
-                                    selection.start,
-                                    selection.end,
-                                    emoji,
-                                  );
-                                  controller.value = controller.value.copyWith(
-                                    text: newText,
-                                    selection: TextSelection.collapsed(
-                                      offset: selection.start + emoji.length,
-                                    ),
-                                  );
-                                  Navigator.pop(context);
-                                },
-                                onGifSelected: (gifUrl) {
-                                  // Send GIF as special message
-                                  controller.text = '[GIF:$gifUrl]';
-                                  Navigator.pop(context);
-                                  onSend();
-                                },
-                                onStickerSelected: (sticker) {
-                                  // Send sticker
-                                  controller.text = sticker;
-                                  Navigator.pop(context);
-                                  onSend();
-                                },
-                              ),
-                            );
-                          }
+                          // Open Discord-style picker with emoji, GIF, stickers
+                          await showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => DiscordStylePicker(
+                              onEmojiSelected: (emoji) {
+                                // Insert emoji at cursor position
+                                final text = controller.text;
+                                final selection = controller.selection;
+                                final newText = text.replaceRange(
+                                  selection.start,
+                                  selection.end,
+                                  emoji,
+                                );
+                                controller.value = controller.value.copyWith(
+                                  text: newText,
+                                  selection: TextSelection.collapsed(
+                                    offset: selection.start + emoji.length,
+                                  ),
+                                );
+                                Navigator.pop(context);
+                              },
+                              onGifSelected: (gifUrl) {
+                                // Send GIF as special message
+                                controller.text = '[GIF:$gifUrl]';
+                                Navigator.pop(context);
+                                onSend();
+                              },
+                              onStickerSelected: (sticker) {
+                                // Send sticker
+                                controller.text = sticker;
+                                Navigator.pop(context);
+                                onSend();
+                              },
+                            ),
+                          );
                         },
                 ),
                 // Mic button or Send button (mic only on supported platforms)
@@ -1803,16 +1810,9 @@ class _ActionIconButton extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onTap,
-  }) : label = null;
+  });
 
-  const _ActionIconButton.text({
-    required this.label,
-    required this.color,
-    required this.onTap,
-  }) : icon = null;
-
-  final IconData? icon;
-  final String? label;
+  final IconData icon;
   final Color color;
   final Future<void> Function()? onTap;
 
@@ -1822,16 +1822,9 @@ class _ActionIconButton extends StatelessWidget {
     final isCompact = width < 480;
     final sidePadding = isCompact ? 2.0 : 4.0;
     final buttonHeight = isCompact ? 32.0 : 36.0;
-    final buttonWidth = label != null
-        ? (isCompact ? 44.0 : 48.0)
-        : (isCompact ? 32.0 : 36.0);
+    final buttonWidth = isCompact ? 32.0 : 36.0;
     final borderRadius = BorderRadius.circular(isCompact ? 16 : 18);
     final iconSize = isCompact ? 18.0 : 20.0;
-    final textStyle = TextStyle(
-      color: color,
-      fontWeight: FontWeight.w600,
-      fontSize: isCompact ? 12.0 : 14.0,
-    );
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: sidePadding),
@@ -1850,9 +1843,7 @@ class _ActionIconButton extends StatelessWidget {
             borderRadius: borderRadius,
           ),
           child: Center(
-            child: icon != null
-                ? Icon(icon, color: color, size: iconSize)
-                : Text(label!, style: textStyle),
+            child: Icon(icon, color: color, size: iconSize),
           ),
         ),
       ),
@@ -2805,9 +2796,7 @@ class _ChatMessage {
   final String? senderAvatar;
 
   bool get hasVisualAttachment =>
-      attachmentUrl != null &&
-      (attachmentType == _AttachmentType.image ||
-          attachmentType == _AttachmentType.gif);
+      attachmentUrl != null && attachmentType == _AttachmentType.image;
 
   /// Create from Supabase data (messages_enriched view)
   static _ChatMessage fromSupabaseData(
@@ -2944,8 +2933,6 @@ String _defaultExtensionFor(_AttachmentType type) {
   switch (type) {
     case _AttachmentType.image:
       return 'jpg';
-    case _AttachmentType.gif:
-      return 'gif';
     case _AttachmentType.file:
       return 'bin';
     case _AttachmentType.voice:

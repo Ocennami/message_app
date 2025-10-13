@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- File: android/app/src/main/res/values/strings.xml -->
+<resources>
+    <string name="app_name">Message App</string>
+    
+    <!-- 🔥 Strings cho Bubbles shortcut -->
+    <string name="chat_short_label">Chat</string>
+    <string name="chat_long_label">Chat with friends</string>
+    <string name="chat_recipient_key">chat_recipient</string>
+</resources>

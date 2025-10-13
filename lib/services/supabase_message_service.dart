@@ -262,12 +262,28 @@ class SupabaseMessageService {
     }
   }
 
-  /// Get typing users stream
+  /// Get typing users stream with user info
   Stream<List<Map<String, dynamic>>> getTypingUsersStream({
     String conversationId = 'default',
   }) async* {
+    // Get users data once for mapping
+    final usersData = await _client
+        .from('users')
+        .select('id, display_name, email');
+    final usersMap = {for (var user in usersData) user['id']: user};
+
+    // Also try to get from user_profiles
+    final profilesData = await _client
+        .from('user_profiles')
+        .select('user_id, display_name');
+    final profilesMap = {
+      for (var profile in profilesData) profile['user_id']: profile,
+    };
+
     await for (final data
-        in _client.from('typing_status').stream(primaryKey: ['id'])) {
+        in _client
+            .from('typing_status')
+            .stream(primaryKey: ['conversation_id', 'user_id'])) {
       // Filter in stream
       final filtered = data
           .where(
@@ -275,6 +291,18 @@ class SupabaseMessageService {
                 item['conversation_id'] == conversationId &&
                 item['is_typing'] == true,
           )
+          .map((item) {
+            // Enrich with user info
+            final userId = item['user_id'];
+            final user = usersMap[userId];
+            final profile = profilesMap[userId];
+
+            return {
+              ...item,
+              'display_name': profile?['display_name'] ?? user?['display_name'],
+              'email': user?['email'],
+            };
+          })
           .toList();
       yield filtered;
     }

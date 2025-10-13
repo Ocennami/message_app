@@ -1,7 +1,7 @@
-// Removed Firebase plugin after migration to Supabase
-// plugins {
-//     id("com.google.gms.google-services") version "4.3.15" apply false
-// }
+// Firebase Cloud Messaging plugin
+plugins {
+    id("com.google.gms.google-services") version "4.4.2" apply false
+}
 
 allprojects {
     repositories {

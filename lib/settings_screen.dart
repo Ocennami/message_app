@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:message_app/widget/background_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -155,6 +156,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _saveSetting('vibration', value);
               },
             ),
+          ),
+          const Divider(height: 1),
+
+          // Appearance Section
+          const _SectionHeader(title: 'Appearance'),
+          ListTile(
+            leading: const Icon(Icons.wallpaper, color: Color(0xFF2D2535)),
+            title: const Text('Background Settings'),
+            subtitle: const Text(
+              'Customize your chat background',
+              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BackgroundSettingsScreen(),
+                ),
+              );
+            },
           ),
           const Divider(height: 1),
 
