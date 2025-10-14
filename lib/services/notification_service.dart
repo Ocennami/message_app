@@ -459,10 +459,10 @@ class NotificationService {
     required String messageId,
     bool hasAttachment = false,
   }) async {
-    // Chỉ show notification khi app ở background
-    final isBackground = await _isAppInBackground();
+    // Show notification on Windows always, on mobile only when in background
+    final shouldShow = Platform.isWindows || await _isAppInBackground();
 
-    if (isBackground) {
+    if (shouldShow) {
       await _showMessageNotification(
         senderId: senderId,
         senderEmail: senderEmail,
@@ -471,7 +471,7 @@ class NotificationService {
         hasAttachment: hasAttachment,
       );
     } else {
-      debugPrint('⏭️ App in foreground, skipping notification');
+      debugPrint('⏭️ App in foreground (mobile), skipping notification');
     }
   }
 

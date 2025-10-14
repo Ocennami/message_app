@@ -147,7 +147,7 @@ For detailed user instructions in Vietnamese, see `USER_GUIDE.md`.
 ### Known Limitations
 
 - **Voice Messages**: Only work on Android/iOS (not supported on Windows/Web/Linux)
-- **Push Notifications**: Only work on Android/iOS/Web (not Windows/macOS/Linux)
+- **Push Notifications**: Work on Android/iOS/Web/Windows (using Windows Notification API)
 
 ## 📦 Dependencies
 
