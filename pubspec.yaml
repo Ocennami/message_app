@@ -64,6 +64,9 @@ dependencies:
   http: ^1.2.2
   giphy_get: ^3.6.1+1 # Giphy SDK for mobile (iOS/Android)
 
+  # Crypto for checksum verification
+  crypto: ^3.0.2
+
   # Notifications
   flutter_local_notifications: ^18.0.1
   windows_notification: ^1.3.0 # Windows toast notifications

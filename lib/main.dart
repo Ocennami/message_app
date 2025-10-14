@@ -12,6 +12,8 @@ import 'package:message_app/services/background_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:message_app/services/fcm_service.dart';
+import 'package:message_app/services/windows_background_service.dart';
+import 'package:message_app/services/version_check_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +39,12 @@ void main() async {
     debugPrint('✅ Supabase storage buckets ready');
   } catch (e) {
     debugPrint('⚠️ Supabase initialization error: $e');
+  }
+
+  if (Platform.isWindows) {
+    final windowsBgService = WindowsBackgroundService();
+    await windowsBgService.initialize();
+    debugPrint('✅ Windows Background Service enabled');
   }
 
   // Initialize services
@@ -87,22 +95,45 @@ void main() async {
     debugPrint('✅ User services initialized with message notifications');
   }
 
+  // Use a global navigator key so services can show dialogs after runApp
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   runApp(
     MultiProvider(
       providers: [ChangeNotifierProvider.value(value: backgroundService)],
-      child: MyApp(userLoggedIn: isActuallyLoggedIn),
+      child: MyApp(
+        userLoggedIn: isActuallyLoggedIn,
+        navigatorKey: navigatorKey,
+      ),
     ),
   );
+
+  // After runApp, perform a version check (non-blocking)
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    try {
+      // Replace this URL with your real release metadata JSON URL
+      const metadataUrl = 'https://example.com/releases.json';
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        final checker = VersionCheckService(metadataUrl: metadataUrl);
+        await checker.checkAndPrompt(ctx);
+      }
+    } catch (e) {
+      debugPrint('Error during post-launch version check: $e');
+    }
+  });
 }
 
 class MyApp extends StatelessWidget {
   final bool userLoggedIn;
+  final GlobalKey<NavigatorState>? navigatorKey;
 
-  const MyApp({super.key, required this.userLoggedIn});
+  const MyApp({super.key, required this.userLoggedIn, this.navigatorKey});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Message App',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
