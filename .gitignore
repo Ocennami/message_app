@@ -48,7 +48,11 @@ app.*.map.json
 lib/config/r2_config.dart
 lib/config/supabase_config.dart
 lib/config/giphy_config.dart
+lib/config/auto_update_config.dart
+website/.env.local
 .env
 .env.local
 *.key
 *.pem
+google-services.json
+android/app/google-services.json

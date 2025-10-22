@@ -1,0 +1,99 @@
+/// Configuration cho Auto-Update System
+/// Cập nhật các giá trị này theo environment của bạn
+class AutoUpdateConfig {
+  // ==============================================
+  // SUPABASE CONFIGURATION
+  // ==============================================
+
+  /// Supabase Project URL
+  /// Lấy từ: Supabase Dashboard > Settings > API > Project URL
+  static const String supabaseUrl = 'YOUR_SUPABASE_URL';
+
+  /// Supabase Anon Key (public key)
+  /// Lấy từ: Supabase Dashboard > Settings > API > Project API keys > anon/public
+  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+
+  /// Supabase Service Role Key (private key - CHỈ dùng trong scripts)
+  /// ⚠️ KHÔNG commit key này vào Git!
+  /// Lấy từ: Supabase Dashboard > Settings > API > Project API keys > service_role
+  static const String supabaseServiceKey = 'YOUR_SUPABASE_SERVICE_ROLE_KEY';
+
+  // ==============================================
+  // STORAGE CONFIGURATION
+  // ==============================================
+
+  /// Tên bucket chứa release files
+  static const String storageBucket = 'releases';
+
+  /// Path pattern cho Android releases
+  /// Format: releases/android/v{version}/app-release.apk
+  static String androidPath(String version) =>
+      'android/v$version/app-release.apk';
+
+  /// Path pattern cho Windows releases
+  /// Format: releases/windows/v{version}/AllianceMessengerSetup.exe
+  static String windowsPath(String version) =>
+      'windows/v$version/AllianceMessengerSetup.exe';
+
+  // ==============================================
+  // WEBSITE CONFIGURATION
+  // ==============================================
+
+  /// Website URL (Vercel deployment)
+  /// VD: https://alliance-messenger.vercel.app
+  static const String websiteUrl = 'YOUR_WEBSITE_URL';
+
+  /// Public download URLs
+  static String androidDownloadUrl = '$websiteUrl/download/android';
+  static String windowsDownloadUrl = '$websiteUrl/download/windows';
+
+  // ==============================================
+  // UPDATE CHECK CONFIGURATION
+  // ==============================================
+
+  /// Số giây giữa mỗi lần check update (default: 1 giờ)
+  static const int updateCheckInterval = 3600;
+
+  /// Có tự động check update khi app start không
+  static const bool autoCheckOnStart = true;
+
+  /// Có hiển thị thông báo khi có update không
+  static const bool showUpdateNotification = true;
+
+  /// Có force update không (bắt buộc user phải update)
+  static const bool forceUpdate = false;
+
+  // ==============================================
+  // METHODS
+  // ==============================================
+
+  /// Validate configuration
+  static bool isConfigured() {
+    return supabaseUrl != 'YOUR_SUPABASE_URL' &&
+        supabaseAnonKey != 'YOUR_SUPABASE_ANON_KEY';
+  }
+
+  /// Get download URL for current platform
+  static String getDownloadUrl(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'android':
+        return androidDownloadUrl;
+      case 'windows':
+        return windowsDownloadUrl;
+      default:
+        return websiteUrl;
+    }
+  }
+
+  /// Get storage path for version
+  static String getStoragePath(String platform, String version) {
+    switch (platform.toLowerCase()) {
+      case 'android':
+        return androidPath(version);
+      case 'windows':
+        return windowsPath(version);
+      default:
+        throw Exception('Unsupported platform: $platform');
+    }
+  }
+}
