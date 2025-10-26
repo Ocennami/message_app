@@ -15,6 +15,7 @@ import 'package:record/record.dart' if (dart.library.html) 'dart:core';
 import 'package:message_app/onboarding_screen.dart';
 import 'package:message_app/profile_screen.dart';
 import 'package:message_app/settings_screen.dart';
+import 'package:message_app/user_profile_view_screen.dart';
 import 'package:message_app/services/supabase_auth_service.dart';
 import 'package:message_app/services/supabase_message_service.dart';
 import 'package:message_app/services/unified_storage_service.dart';
@@ -110,20 +111,49 @@ class _HomeHeaderState extends State<_HomeHeader> {
       );
     }
 
-    // Get avatar URL from user metadata or construct from Supabase storage
-    final userId = user.id;
-    final avatarUrl =
-        'https://hqurumleoygxrhkuvahg.supabase.co/storage/v1/object/public/avatars/$userId/$userId.jpg';
+    // Get photo_url from user metadata
+    final photoUrl = user.userMetadata?['photo_url'] as String?;
 
-    return CachedNetworkImage(
-      imageUrl: avatarUrl,
-      fit: BoxFit.cover,
-      placeholder: (context, url) =>
-          const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      errorWidget: (context, url, error) {
-        // Fallback to default avatar if image load fails
-        return Image.asset('assets/images/OIP.jpg', fit: BoxFit.cover);
-      },
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: photoUrl,
+        fit: BoxFit.cover,
+        placeholder: (context, url) =>
+            const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        errorWidget: (context, url, error) {
+          // Show first letter of email if image fails
+          final firstLetter = user.email?.substring(0, 1).toUpperCase() ?? '?';
+          return Container(
+            color: const Color(0xFF7494EC),
+            child: Center(
+              child: Text(
+                firstLetter,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: size * 0.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    // Show first letter of email as fallback
+    final firstLetter = user.email?.substring(0, 1).toUpperCase() ?? '?';
+    return Container(
+      color: const Color(0xFF7494EC),
+      child: Center(
+        child: Text(
+          firstLetter,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: size * 0.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 
@@ -180,73 +210,101 @@ class _HomeHeaderState extends State<_HomeHeader> {
                   ),
                 ),
               ),
-              if (_isSearching)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 48),
-                  child: TextField(
-                    controller: _searchController,
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Search for messages...',
-                      border: InputBorder.none,
-                      hintStyle: TextStyle(color: Color(0xFF7F7F88)),
-                    ),
-                    style: const TextStyle(
-                      color: Color(0xFF2D2535),
-                      fontSize: 16,
-                    ),
-                    onChanged: widget.onSearchChanged,
-                  ),
-                )
-              else
-                Align(
-                  alignment: Alignment.center,
-                  child: StreamBuilder<Map<String, UserPresence>>(
-                    stream: PresenceService().presenceStream,
-                    builder: (context, snapshot) {
-                      final presences = snapshot.data ?? {};
-                      final onlineCount = presences.values
-                          .where((p) => p.isOnline)
-                          .length;
-
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Alliance Organization "v"',
-                            style: titleStyle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position:
+                          Tween<Offset>(
+                            begin: const Offset(0.1, 0),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutCubic,
+                            ),
                           ),
-                          if (onlineCount > 0)
-                            Row(
+                      child: child,
+                    ),
+                  );
+                },
+                child: _isSearching
+                    ? Padding(
+                        key: const ValueKey('search_field'),
+                        padding: const EdgeInsets.symmetric(horizontal: 48),
+                        child: TextField(
+                          controller: _searchController,
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            hintText: 'Search for messages...',
+                            border: InputBorder.none,
+                            hintStyle: TextStyle(
+                              color: const Color(0xFF7F7F88).withOpacity(0.7),
+                            ),
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          style: const TextStyle(
+                            color: Color(0xFF2D2535),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          cursorColor: const Color(0xFF7494EC),
+                          cursorWidth: 2,
+                          onChanged: widget.onSearchChanged,
+                        ),
+                      )
+                    : Align(
+                        key: const ValueKey('title'),
+                        alignment: Alignment.center,
+                        child: StreamBuilder<Map<String, UserPresence>>(
+                          stream: PresenceService().presenceStream,
+                          builder: (context, snapshot) {
+                            final presences = snapshot.data ?? {};
+                            final onlineCount = presences.values
+                                .where((p) => p.isOnline)
+                                .length;
+
+                            return Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF44B700),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
                                 Text(
-                                  '$onlineCount online',
-                                  style: TextStyle(
-                                    fontSize: isCompact ? 10 : 11,
-                                    color: const Color(0xFF44B700),
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                  'Alliance Organization "v"',
+                                  style: titleStyle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
                                 ),
+                                if (onlineCount > 0)
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 6,
+                                        height: 6,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF44B700),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '$onlineCount online',
+                                        style: TextStyle(
+                                          fontSize: isCompact ? 10 : 11,
+                                          color: const Color(0xFF44B700),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                               ],
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
+                            );
+                          },
+                        ),
+                      ),
+              ),
               Align(
                 alignment: Alignment.centerRight,
                 child: _isSearching
@@ -1511,7 +1569,7 @@ class _MessagesList extends StatelessWidget {
   }
 }
 
-class _MessageInputBar extends StatelessWidget {
+class _MessageInputBar extends StatefulWidget {
   const _MessageInputBar({
     required this.controller,
     required this.onSend,
@@ -1543,15 +1601,80 @@ class _MessageInputBar extends StatelessWidget {
   final bool isVoiceSupported;
 
   @override
+  State<_MessageInputBar> createState() => _MessageInputBarState();
+}
+
+class _MessageInputBarState extends State<_MessageInputBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Color?> _backgroundColorAnimation;
+  late Animation<double> _shadowAnimation;
+  final FocusNode _focusNode = FocusNode();
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 350),
+      vsync: this,
+    );
+
+    // Setup animations with smooth curves
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOutCubic,
+      ),
+    );
+
+    _backgroundColorAnimation =
+        ColorTween(
+          begin: const Color(0xFFF5F5F5),
+          end: const Color(0xFFFFFFFF),
+        ).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeInOutCubic,
+          ),
+        );
+
+    _shadowAnimation = Tween<double>(begin: 8.0, end: 12.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOutCubic,
+      ),
+    );
+
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus != _isFocused) {
+        setState(() {
+          _isFocused = _focusNode.hasFocus;
+        });
+
+        if (_isFocused) {
+          _animationController.forward();
+        } else {
+          _animationController.reverse();
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isCompact = width < 480;
     final horizontalMargin = isCompact ? 12.0 : 20.0;
     final bottomMargin = isCompact ? 12.0 : 24.0;
-    final containerPadding = EdgeInsets.symmetric(
-      horizontal: isCompact ? 6.0 : 8.0,
-      vertical: isCompact ? 8.0 : 10.0,
-    );
     final gap = isCompact ? 6.0 : 8.0;
     final fieldHeight = isCompact ? 38.0 : 44.0;
     final fieldPadding = EdgeInsets.symmetric(
@@ -1559,33 +1682,21 @@ class _MessageInputBar extends StatelessWidget {
     );
     final textSize = isCompact ? 14.0 : 16.0;
 
-    return Container(
-      margin: EdgeInsets.fromLTRB(
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
         horizontalMargin,
         4,
         horizontalMargin,
         bottomMargin,
       ),
-      padding: containerPadding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(isCompact ? 24 : 28),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x11000000),
-            blurRadius: 22,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: isRecording
+      child: widget.isRecording
           ? Row(
               children: [
                 // Cancel button
                 _ActionIconButton(
                   icon: Icons.delete_outline,
                   color: Colors.red,
-                  onTap: onCancelRecording,
+                  onTap: widget.onCancelRecording,
                 ),
                 SizedBox(width: gap),
                 // Recording indicator
@@ -1600,7 +1711,7 @@ class _MessageInputBar extends StatelessWidget {
                 SizedBox(width: gap),
                 // Duration
                 Text(
-                  _formatDuration(recordDuration),
+                  _formatDuration(widget.recordDuration),
                   style: TextStyle(
                     color: const Color(0xFF2D2535),
                     fontSize: textSize,
@@ -1612,7 +1723,7 @@ class _MessageInputBar extends StatelessWidget {
                 Text(
                   '.....',
                   style: TextStyle(
-                    color: accentColor,
+                    color: widget.accentColor,
                     fontSize: textSize * 0.8,
                   ),
                 ),
@@ -1620,68 +1731,135 @@ class _MessageInputBar extends StatelessWidget {
                 // Stop button
                 _ActionIconButton(
                   icon: Icons.send,
-                  color: accentColor,
-                  onTap: onStopRecording,
+                  color: widget.accentColor,
+                  onTap: widget.onStopRecording,
                 ),
               ],
             )
           : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _ActionIconButton(
                   icon: Icons.add,
-                  color: accentColor,
-                  onTap: isSending ? null : onAddFile,
+                  color: widget.accentColor,
+                  onTap: widget.isSending ? null : widget.onAddFile,
                 ),
                 _ActionIconButton(
                   icon: Icons.image_outlined,
-                  color: accentColor,
-                  onTap: isSending ? null : onPickImage,
+                  color: widget.accentColor,
+                  onTap: widget.isSending ? null : widget.onPickImage,
                 ),
                 _ActionIconButton(
                   icon: Icons.palette_outlined,
-                  color: accentColor,
-                  onTap: isSending ? null : onChangeTheme,
+                  color: widget.accentColor,
+                  onTap: widget.isSending ? null : widget.onChangeTheme,
                 ),
                 SizedBox(width: gap),
-                Expanded(
-                  child: Container(
-                    height: fieldHeight,
-                    padding: fieldPadding,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8E8E8),
-                      borderRadius: BorderRadius.circular(isCompact ? 19 : 22),
-                    ),
-                    alignment: Alignment.center,
-                    child: TextField(
-                      controller: controller,
-                      onSubmitted: (_) {
-                        if (!isSending) {
-                          onSend();
-                        }
-                      },
-                      style: TextStyle(
-                        color: const Color(0xFF2D2535),
-                        fontSize: textSize,
+                Flexible(
+                  flex: _isFocused ? 1 : 0,
+                  child: AnimatedSize(
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeInOutCubic,
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      onTap: _isFocused
+                          ? null
+                          : () {
+                              setState(() {
+                                _isFocused = true;
+                              });
+                              _focusNode.requestFocus();
+                            },
+                      child: AnimatedBuilder(
+                        animation: _animationController,
+                        builder: (context, child) {
+                          return Container(
+                            constraints: BoxConstraints(
+                              minWidth: isCompact ? 100.0 : 120.0,
+                              maxWidth: double.infinity,
+                            ),
+                            height: fieldHeight,
+                            padding: fieldPadding,
+                            decoration: BoxDecoration(
+                              color: _backgroundColorAnimation.value,
+                              borderRadius: BorderRadius.circular(
+                                isCompact ? 22 : 26,
+                              ),
+                              border: Border.all(
+                                color: widget.accentColor.withOpacity(
+                                  _fadeAnimation.value * 0.3,
+                                ),
+                                width: 1.5 * _fadeAnimation.value,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color.lerp(
+                                    const Color(0x11000000),
+                                    widget.accentColor.withOpacity(0.15),
+                                    _fadeAnimation.value,
+                                  )!,
+                                  blurRadius: _shadowAnimation.value,
+                                  offset: Offset(
+                                    0,
+                                    2 + (2 * _fadeAnimation.value),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.centerLeft,
+                            child: _isFocused
+                                ? TextField(
+                                    controller: widget.controller,
+                                    focusNode: _focusNode,
+                                    onSubmitted: (_) {
+                                      if (!widget.isSending) {
+                                        widget.onSend();
+                                      }
+                                    },
+                                    style: TextStyle(
+                                      color: const Color(0xFF2D2535),
+                                      fontSize: textSize,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: 'Aa',
+                                      hintStyle: TextStyle(
+                                        color: const Color(
+                                          0xFF9E9E9E,
+                                        ).withOpacity(0.6),
+                                        fontSize: textSize,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                      border: InputBorder.none,
+                                      isCollapsed: true,
+                                      contentPadding: EdgeInsets.zero,
+                                    ),
+                                    cursorColor: widget.accentColor,
+                                    cursorWidth: 2,
+                                    cursorRadius: const Radius.circular(2),
+                                  )
+                                : Opacity(
+                                    opacity: 1.0 - _fadeAnimation.value,
+                                    child: Text(
+                                      'Aa',
+                                      style: TextStyle(
+                                        color: const Color(0xFF9E9E9E),
+                                        fontSize: textSize,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                          );
+                        },
                       ),
-                      decoration: InputDecoration(
-                        hintText: 'Aa',
-                        hintStyle: TextStyle(
-                          color: const Color(0xFF9E9E9E),
-                          fontSize: textSize,
-                        ),
-                        border: InputBorder.none,
-                        isCollapsed: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      cursorColor: accentColor,
                     ),
                   ),
                 ),
                 SizedBox(width: gap),
                 _ActionIconButton(
                   icon: Icons.emoji_emotions_outlined,
-                  color: accentColor,
-                  onTap: isSending
+                  color: widget.accentColor,
+                  onTap: widget.isSending
                       ? null
                       : () async {
                           // Open Discord-style picker with emoji, GIF, stickers
@@ -1692,54 +1870,59 @@ class _MessageInputBar extends StatelessWidget {
                             builder: (context) => DiscordStylePicker(
                               onEmojiSelected: (emoji) {
                                 // Insert emoji at cursor position
-                                final text = controller.text;
-                                final selection = controller.selection;
+                                final text = widget.controller.text;
+                                final selection = widget.controller.selection;
                                 final newText = text.replaceRange(
                                   selection.start,
                                   selection.end,
                                   emoji,
                                 );
-                                controller.value = controller.value.copyWith(
-                                  text: newText,
-                                  selection: TextSelection.collapsed(
-                                    offset: selection.start + emoji.length,
-                                  ),
-                                );
+                                widget.controller.value = widget
+                                    .controller
+                                    .value
+                                    .copyWith(
+                                      text: newText,
+                                      selection: TextSelection.collapsed(
+                                        offset: selection.start + emoji.length,
+                                      ),
+                                    );
                                 Navigator.pop(context);
                               },
                               onGifSelected: (gifUrl) {
                                 // Send GIF as special message
-                                controller.text = '[GIF:$gifUrl]';
+                                widget.controller.text = '[GIF:$gifUrl]';
                                 Navigator.pop(context);
-                                onSend();
+                                widget.onSend();
                               },
                               onStickerSelected: (sticker) {
                                 // Send sticker
-                                controller.text = sticker;
+                                widget.controller.text = sticker;
                                 Navigator.pop(context);
-                                onSend();
+                                widget.onSend();
                               },
                             ),
                           );
                         },
                 ),
                 // Mic button or Send button (mic only on supported platforms)
-                controller.text.trim().isEmpty
-                    ? (isVoiceSupported
+                widget.controller.text.trim().isEmpty
+                    ? (widget.isVoiceSupported
                           ? _ActionIconButton(
                               icon: Icons.mic,
-                              color: accentColor,
-                              onTap: isSending ? null : onStartRecording,
+                              color: widget.accentColor,
+                              onTap: widget.isSending
+                                  ? null
+                                  : widget.onStartRecording,
                             )
                           : _SendButton(
-                              color: accentColor,
-                              onSend: onSend,
-                              isSending: isSending,
+                              color: widget.accentColor,
+                              onSend: widget.onSend,
+                              isSending: widget.isSending,
                             ))
                     : _SendButton(
-                        color: accentColor,
-                        onSend: onSend,
-                        isSending: isSending,
+                        color: widget.accentColor,
+                        onSend: widget.onSend,
+                        isSending: widget.isSending,
                       ),
               ],
             ),
@@ -1762,42 +1945,56 @@ class _SendButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isCompact = width < 480;
-    final sidePadding = isCompact ? 2.0 : 4.0;
-    final buttonWidth = isCompact ? 36.0 : 40.0;
-    final buttonHeight = isCompact ? 32.0 : 36.0;
-    final borderRadius = BorderRadius.circular(isCompact ? 16 : 18);
-    final indicatorSize = isCompact ? 16.0 : 18.0;
-    final indicatorStroke = isCompact ? 1.8 : 2.0;
-    final iconSize = isCompact ? 18.0 : 20.0;
+    final sidePadding = isCompact ? 4.0 : 6.0;
+    final buttonSize = isCompact ? 40.0 : 44.0;
+    final iconSize = isCompact ? 20.0 : 22.0;
+    final indicatorSize = isCompact ? 18.0 : 20.0;
+    final indicatorStroke = isCompact ? 2.0 : 2.2;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: sidePadding),
-      child: InkWell(
-        onTap: isSending
-            ? null
-            : () async {
-                // Send thumbs up when clicked
-                await onSend();
-              },
-        borderRadius: borderRadius,
-        child: Ink(
-          width: buttonWidth,
-          height: buttonHeight,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: borderRadius,
-          ),
-          child: Center(
-            child: isSending
-                ? SizedBox(
-                    width: indicatorSize,
-                    height: indicatorSize,
-                    child: CircularProgressIndicator(
-                      strokeWidth: indicatorStroke,
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                    ),
-                  )
-                : Icon(Icons.thumb_up, color: color, size: iconSize),
+      child: Container(
+        width: buttonSize,
+        height: buttonSize,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x11000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: isSending
+                ? null
+                : () async {
+                    // Send thumbs up when clicked
+                    await onSend();
+                  },
+            borderRadius: BorderRadius.circular(buttonSize / 2),
+            child: Container(
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: isSending
+                    ? SizedBox(
+                        width: indicatorSize,
+                        height: indicatorSize,
+                        child: CircularProgressIndicator(
+                          strokeWidth: indicatorStroke,
+                          valueColor: AlwaysStoppedAnimation<Color>(color),
+                        ),
+                      )
+                    : Icon(Icons.thumb_up, color: color, size: iconSize),
+              ),
+            ),
           ),
         ),
       ),
@@ -1820,30 +2017,44 @@ class _ActionIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isCompact = width < 480;
-    final sidePadding = isCompact ? 2.0 : 4.0;
-    final buttonHeight = isCompact ? 32.0 : 36.0;
-    final buttonWidth = isCompact ? 32.0 : 36.0;
-    final borderRadius = BorderRadius.circular(isCompact ? 16 : 18);
-    final iconSize = isCompact ? 18.0 : 20.0;
+    final sidePadding = isCompact ? 4.0 : 6.0;
+    final buttonSize = isCompact ? 40.0 : 44.0;
+    final iconSize = isCompact ? 20.0 : 22.0;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: sidePadding),
-      child: InkWell(
-        onTap: onTap == null
-            ? null
-            : () {
-                onTap!();
-              },
-        borderRadius: borderRadius,
-        child: Ink(
-          width: buttonWidth,
-          height: buttonHeight,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: borderRadius,
-          ),
-          child: Center(
-            child: Icon(icon, color: color, size: iconSize),
+      child: Container(
+        width: buttonSize,
+        height: buttonSize,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x11000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap == null
+                ? null
+                : () {
+                    onTap!();
+                  },
+            borderRadius: BorderRadius.circular(buttonSize / 2),
+            child: Container(
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(icon, color: color, size: iconSize),
+              ),
+            ),
           ),
         ),
       ),
@@ -2233,29 +2444,41 @@ class _ChatBubbleState extends State<_ChatBubble> {
           if (!isMe) ...[
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFFE4E6EB),
-                backgroundImage:
-                    message.senderAvatar != null &&
-                        message.senderAvatar!.isNotEmpty
-                    ? CachedNetworkImageProvider(message.senderAvatar!)
-                    : null,
-                child:
-                    message.senderAvatar == null ||
-                        message.senderAvatar!.isEmpty
-                    ? Text(
-                        (message.senderName?.isNotEmpty == true
-                                ? message.senderName!.substring(0, 1)
-                                : '?')
-                            .toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF65676B),
-                        ),
-                      )
-                    : null,
+              child: GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => UserProfileViewScreen(
+                      userId: message.userId ?? '',
+                      displayName: message.senderName,
+                      photoUrl: message.senderAvatar,
+                    ),
+                  );
+                },
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFFE4E6EB),
+                  backgroundImage:
+                      message.senderAvatar != null &&
+                          message.senderAvatar!.isNotEmpty
+                      ? CachedNetworkImageProvider(message.senderAvatar!)
+                      : null,
+                  child:
+                      message.senderAvatar == null ||
+                          message.senderAvatar!.isEmpty
+                      ? Text(
+                          (message.senderName?.isNotEmpty == true
+                                  ? message.senderName!.substring(0, 1)
+                                  : '?')
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF65676B),
+                          ),
+                        )
+                      : null,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -2267,12 +2490,61 @@ class _ChatBubbleState extends State<_ChatBubble> {
                   ? CrossAxisAlignment.end
                   : CrossAxisAlignment.start,
               children: [
+                // Hiển thị tên người gửi (cho cả tin nhắn của bản thân và người khác)
+                if (message.senderName != null &&
+                    message.senderName!.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: isMe ? 0 : 12,
+                      right: isMe ? 12 : 0,
+                      bottom: 4,
+                    ),
+                    child: Text(
+                      message.senderName!,
+                      style: TextStyle(
+                        fontSize: isCompact ? 11.0 : 12.0,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF65676B),
+                      ),
+                    ),
+                  ),
                 MouseRegion(
                   onEnter: (_) => setState(() => _isHovered = true),
                   onExit: (_) => setState(() => _isHovered = false),
-                  child: Stack(
-                    clipBehavior: Clip.none,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      // Hover actions - LEFT side (for MY messages - isMe = true)
+                      if (_isHovered && isMe) ...[
+                        _HoverActionButton(
+                          icon: Icons.reply,
+                          tooltip: 'Reply',
+                          onPressed: widget.onReply,
+                        ),
+                        const SizedBox(width: 6),
+                        _HoverActionButton(
+                          icon: Icons.emoji_emotions_outlined,
+                          tooltip: 'React',
+                          onPressed: () =>
+                              _showMessageActions(context, message),
+                        ),
+                        const SizedBox(width: 6),
+                        _HoverActionButton(
+                          icon: Icons.forward,
+                          tooltip: 'Forward',
+                          onPressed: widget.onForward,
+                        ),
+                        const SizedBox(width: 6),
+                        _HoverActionButton(
+                          icon: Icons.delete_outline,
+                          tooltip: 'Delete',
+                          onPressed: widget.onDelete,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      // Chat bubble
                       GestureDetector(
                         onLongPress: () {
                           _showMessageActions(context, message);
@@ -2300,54 +2572,28 @@ class _ChatBubbleState extends State<_ChatBubble> {
                           ),
                         ),
                       ),
-                      // Hover actions
-                      if (_isHovered)
-                        Positioned(
-                          top: -8,
-                          right: isMe ? 8 : null,
-                          left: isMe ? null : 8,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x1A000000),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _HoverActionButton(
-                                  icon: Icons.reply,
-                                  tooltip: 'Reply',
-                                  onPressed: widget.onReply,
-                                ),
-                                _HoverActionButton(
-                                  icon: Icons.forward,
-                                  tooltip: 'Forward',
-                                  onPressed: widget.onForward,
-                                ),
-                                _HoverActionButton(
-                                  icon: Icons.emoji_emotions_outlined,
-                                  tooltip: 'React',
-                                  onPressed: () =>
-                                      _showMessageActions(context, message),
-                                ),
-                                if (message.isMe)
-                                  _HoverActionButton(
-                                    icon: Icons.delete_outline,
-                                    tooltip: 'Delete',
-                                    onPressed: widget.onDelete,
-                                    color: Colors.red,
-                                  ),
-                              ],
-                            ),
-                          ),
+                      // Hover actions - RIGHT side (for OTHER'S messages - isMe = false)
+                      if (_isHovered && !isMe) ...[
+                        const SizedBox(width: 8),
+                        _HoverActionButton(
+                          icon: Icons.reply,
+                          tooltip: 'Reply',
+                          onPressed: widget.onReply,
                         ),
+                        const SizedBox(width: 6),
+                        _HoverActionButton(
+                          icon: Icons.emoji_emotions_outlined,
+                          tooltip: 'React',
+                          onPressed: () =>
+                              _showMessageActions(context, message),
+                        ),
+                        const SizedBox(width: 6),
+                        _HoverActionButton(
+                          icon: Icons.forward,
+                          tooltip: 'Forward',
+                          onPressed: widget.onForward,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -2368,29 +2614,41 @@ class _ChatBubbleState extends State<_ChatBubble> {
             const SizedBox(width: 8),
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFFE4E6EB),
-                backgroundImage:
-                    message.senderAvatar != null &&
-                        message.senderAvatar!.isNotEmpty
-                    ? CachedNetworkImageProvider(message.senderAvatar!)
-                    : null,
-                child:
-                    message.senderAvatar == null ||
-                        message.senderAvatar!.isEmpty
-                    ? Text(
-                        (message.senderName?.isNotEmpty == true
-                                ? message.senderName!.substring(0, 1)
-                                : '?')
-                            .toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF65676B),
-                        ),
-                      )
-                    : null,
+              child: GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => UserProfileViewScreen(
+                      userId: message.userId ?? '',
+                      displayName: message.senderName,
+                      photoUrl: message.senderAvatar,
+                    ),
+                  );
+                },
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFFE4E6EB),
+                  backgroundImage:
+                      message.senderAvatar != null &&
+                          message.senderAvatar!.isNotEmpty
+                      ? CachedNetworkImageProvider(message.senderAvatar!)
+                      : null,
+                  child:
+                      message.senderAvatar == null ||
+                          message.senderAvatar!.isEmpty
+                      ? Text(
+                          (message.senderName?.isNotEmpty == true
+                                  ? message.senderName!.substring(0, 1)
+                                  : '?')
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF65676B),
+                          ),
+                        )
+                      : null,
+                ),
               ),
             ),
           ],
@@ -2777,6 +3035,7 @@ class _ChatMessage {
     this.isForwarded = false,
     this.senderName,
     this.senderAvatar,
+    this.userId,
   });
 
   final String? id;
@@ -2794,6 +3053,7 @@ class _ChatMessage {
   final bool isForwarded;
   final String? senderName;
   final String? senderAvatar;
+  final String? userId; // User ID of sender
 
   bool get hasVisualAttachment =>
       attachmentUrl != null && attachmentType == _AttachmentType.image;
@@ -2856,6 +3116,7 @@ class _ChatMessage {
       isForwarded: data['is_forwarded'] as bool? ?? false,
       senderName: senderName ?? 'Unknown',
       senderAvatar: senderAvatar,
+      userId: data['user_id'] as String?,
     );
   }
 }
@@ -3348,13 +3609,26 @@ class _HoverActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
-      child: IconButton(
-        icon: Icon(icon, size: 18),
-        color: color ?? Colors.grey[700],
-        onPressed: onPressed,
-        padding: const EdgeInsets.all(8),
-        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        splashRadius: 16,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F2F5),
+          shape: BoxShape.circle,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: IconButton(
+          icon: Icon(icon, size: 18),
+          color: color ?? Colors.grey[700],
+          onPressed: onPressed,
+          padding: const EdgeInsets.all(6),
+          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          splashRadius: 18,
+        ),
       ),
     );
   }

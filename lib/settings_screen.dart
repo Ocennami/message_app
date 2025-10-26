@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:message_app/widget/background_settings_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import 'dart:io';
+import 'auth_screen.dart';
+import 'providers/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,21 +17,43 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _isDarkMode = false;
   bool _notificationsEnabled = true;
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
+  String _cacheSize = 'Đang tính...';
+
+  final user = Supabase.instance.client.auth.currentUser;
+  String _displayName = '';
+  String _photoUrl = '';
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _loadUserData();
+    _calculateCacheSize();
+  }
+
+  Future<void> _loadUserData() async {
+    if (user != null) {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('display_name, photo_url')
+          .eq('id', user!.id)
+          .single();
+
+      if (mounted) {
+        setState(() {
+          _displayName = response['display_name'] ?? '';
+          _photoUrl = response['photo_url'] ?? '';
+        });
+      }
+    }
   }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isDarkMode = prefs.getBool('darkMode') ?? false;
       _notificationsEnabled = prefs.getBool('notifications') ?? true;
       _soundEnabled = prefs.getBool('sound') ?? true;
       _vibrationEnabled = prefs.getBool('vibration') ?? true;
@@ -36,304 +65,612 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool(key, value);
   }
 
+  Future<void> _calculateCacheSize() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      int totalSize = 0;
+
+      if (await tempDir.exists()) {
+        await for (var entity in tempDir.list(
+          recursive: true,
+          followLinks: false,
+        )) {
+          if (entity is File) {
+            totalSize += await entity.length();
+          }
+        }
+      }
+
+      setState(() {
+        _cacheSize = '${(totalSize / (1024 * 1024)).toStringAsFixed(2)} MB';
+      });
+    } catch (e) {
+      setState(() {
+        _cacheSize = 'Không xác định';
+      });
+    }
+  }
+
+  Future<void> _clearCache() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+      await _calculateCacheSize();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✨ Đã xóa bộ nhớ đệm thành công',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: const Color(0xFF7494EC),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '❌ Lỗi khi xóa bộ nhớ đệm: $e',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Đăng xuất',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF2C2C2E),
+          ),
+        ),
+        content: Text(
+          'Bạn có chắc muốn đăng xuất?',
+          style: GoogleFonts.poppins(color: const Color(0xFF666666)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Hủy',
+              style: GoogleFonts.poppins(color: const Color(0xFF666666)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF7494EC),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              'Đăng xuất',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await Supabase.instance.client.auth.signOut();
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const AuthScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF2ECF7),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF2D2535)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(
-            color: Color(0xFF2D2535),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      body: ListView(
-        children: [
-          // Appearance Section
-          const _SectionHeader(title: 'Appearance'),
-          ListTile(
-            leading: Icon(
-              _isDarkMode ? Icons.dark_mode : Icons.light_mode,
-              color: const Color(0xFF2D2535),
-            ),
-            title: const Text('Dark Mode'),
-            subtitle: Text(
-              _isDarkMode ? 'Dark theme enabled' : 'Light theme enabled',
-              style: const TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            trailing: Switch(
-              value: _isDarkMode,
-              activeColor: const Color(0xFF2D2535),
-              onChanged: (value) {
-                setState(() {
-                  _isDarkMode = value;
-                });
-                _saveSetting('darkMode', value);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      value
-                          ? 'Dark mode will be available in next update'
-                          : 'Light mode activated',
-                    ),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
-            ),
-          ),
-          const Divider(height: 1),
-
-          // Notifications Section
-          const _SectionHeader(title: 'Notifications'),
-          ListTile(
-            leading: const Icon(
-              Icons.notifications_outlined,
-              color: Color(0xFF2D2535),
-            ),
-            title: const Text('Push Notifications'),
-            subtitle: const Text(
-              'Receive notifications for new messages',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            trailing: Switch(
-              value: _notificationsEnabled,
-              activeColor: const Color(0xFF2D2535),
-              onChanged: (value) {
-                setState(() {
-                  _notificationsEnabled = value;
-                });
-                _saveSetting('notifications', value);
-              },
-            ),
-          ),
-          ListTile(
-            leading: const Icon(
-              Icons.volume_up_outlined,
-              color: Color(0xFF2D2535),
-            ),
-            title: const Text('Sound'),
-            subtitle: const Text(
-              'Play sound for incoming messages',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            trailing: Switch(
-              value: _soundEnabled,
-              activeColor: const Color(0xFF2D2535),
-              onChanged: (value) {
-                setState(() {
-                  _soundEnabled = value;
-                });
-                _saveSetting('sound', value);
-              },
-            ),
-          ),
-          ListTile(
-            leading: const Icon(
-              Icons.vibration_outlined,
-              color: Color(0xFF2D2535),
-            ),
-            title: const Text('Vibration'),
-            subtitle: const Text(
-              'Vibrate on new messages',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            trailing: Switch(
-              value: _vibrationEnabled,
-              activeColor: const Color(0xFF2D2535),
-              onChanged: (value) {
-                setState(() {
-                  _vibrationEnabled = value;
-                });
-                _saveSetting('vibration', value);
-              },
-            ),
-          ),
-          const Divider(height: 1),
-
-          // Appearance Section
-          const _SectionHeader(title: 'Appearance'),
-          ListTile(
-            leading: const Icon(Icons.wallpaper, color: Color(0xFF2D2535)),
-            title: const Text('Background Settings'),
-            subtitle: const Text(
-              'Customize your chat background',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const BackgroundSettingsScreen(),
+      backgroundColor: const Color(0xFFF8F9FD),
+      body: CustomScrollView(
+        slivers: [
+          // Modern App Bar với Gradient
+          SliverAppBar(
+            expandedHeight: 120,
+            floating: false,
+            pinned: true,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            flexibleSpace: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF7494EC), Color(0xFF9CB4F5)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              );
-            },
-          ),
-          const Divider(height: 1),
-
-          // Privacy & Security Section
-          const _SectionHeader(title: 'Privacy & Security'),
-          ListTile(
-            leading: const Icon(Icons.lock_outline, color: Color(0xFF2D2535)),
-            title: const Text('Privacy Settings'),
-            subtitle: const Text(
-              'Manage who can see your information',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Feature coming soon')),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.block_outlined, color: Color(0xFF2D2535)),
-            title: const Text('Blocked Users'),
-            subtitle: const Text(
-              'Manage blocked contacts',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Feature coming soon')),
-              );
-            },
-          ),
-          const Divider(height: 1),
-
-          // Storage Section
-          const _SectionHeader(title: 'Storage'),
-          ListTile(
-            leading: const Icon(
-              Icons.storage_outlined,
-              color: Color(0xFF2D2535),
-            ),
-            title: const Text('Storage Management'),
-            subtitle: const Text(
-              'Manage app data and cache',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Feature coming soon')),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete_outline, color: Colors.red),
-            title: const Text(
-              'Clear Cache',
-              style: TextStyle(color: Colors.red),
-            ),
-            subtitle: const Text(
-              'Free up space by clearing cached data',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
-            ),
-            onTap: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Clear Cache'),
-                  content: const Text(
-                    'Are you sure you want to clear all cached data? This action cannot be undone.',
+              ),
+              child: FlexibleSpaceBar(
+                centerTitle: false,
+                titlePadding: const EdgeInsets.only(left: 24, bottom: 16),
+                title: Text(
+                  'Cài đặt',
+                  style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
+                ),
+              ),
+            ),
+          ),
+
+          // Content
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+
+                // User Info Card
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF7494EC), Color(0xFF9CB4F5)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF7494EC).withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text(
-                        'Clear',
-                        style: TextStyle(color: Colors.red),
+                    child: Row(
+                      children: [
+                        // Avatar
+                        Container(
+                          width: 70,
+                          height: 70,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: _photoUrl.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: _photoUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        const CircularProgressIndicator(),
+                                    errorWidget: (context, url, error) =>
+                                        Container(
+                                          color: Colors.white,
+                                          child: const Icon(
+                                            Icons.person,
+                                            color: Color(0xFF7494EC),
+                                            size: 35,
+                                          ),
+                                        ),
+                                  )
+                                : Container(
+                                    color: Colors.white,
+                                    child: const Icon(
+                                      Icons.person,
+                                      color: Color(0xFF7494EC),
+                                      size: 35,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+
+                        // User Info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _displayName.isNotEmpty ? _displayName : 'User',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                user?.email ?? '',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.white.withOpacity(0.9),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                // Giao diện
+                _buildSectionTitle('🎨 Giao diện'),
+                _buildSettingsCard([
+                  Consumer<ThemeProvider>(
+                    builder: (context, themeProvider, child) {
+                      return _buildSettingTile(
+                        icon: Icons.dark_mode_rounded,
+                        iconColor: const Color(0xFF6C63FF),
+                        title: 'Chế độ tối',
+                        subtitle: themeProvider.isDarkMode
+                            ? 'Đang bật'
+                            : 'Đang tắt',
+                        trailing: Switch(
+                          value: themeProvider.isDarkMode,
+                          onChanged: (value) {
+                            themeProvider.setTheme(value);
+                          },
+                          activeColor: const Color(0xFF7494EC),
+                        ),
+                      );
+                    },
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+
+                // Thông báo
+                _buildSectionTitle('🔔 Thông báo'),
+                _buildSettingsCard([
+                  _buildSettingTile(
+                    icon: Icons.notifications_rounded,
+                    iconColor: const Color(0xFFFF6B6B),
+                    title: 'Thông báo đẩy',
+                    subtitle: _notificationsEnabled ? 'Đang bật' : 'Đang tắt',
+                    trailing: Switch(
+                      value: _notificationsEnabled,
+                      onChanged: (value) {
+                        setState(() => _notificationsEnabled = value);
+                        _saveSetting('notifications', value);
+                      },
+                      activeColor: const Color(0xFF7494EC),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _buildSettingTile(
+                    icon: Icons.volume_up_rounded,
+                    iconColor: const Color(0xFFFFD93D),
+                    title: 'Âm thanh',
+                    subtitle: _soundEnabled ? 'Đang bật' : 'Đang tắt',
+                    trailing: Switch(
+                      value: _soundEnabled,
+                      onChanged: (value) {
+                        setState(() => _soundEnabled = value);
+                        _saveSetting('sound', value);
+                      },
+                      activeColor: const Color(0xFF7494EC),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _buildSettingTile(
+                    icon: Icons.vibration_rounded,
+                    iconColor: const Color(0xFF4ECDC4),
+                    title: 'Rung',
+                    subtitle: _vibrationEnabled ? 'Đang bật' : 'Đang tắt',
+                    trailing: Switch(
+                      value: _vibrationEnabled,
+                      onChanged: (value) {
+                        setState(() => _vibrationEnabled = value);
+                        _saveSetting('vibration', value);
+                      },
+                      activeColor: const Color(0xFF7494EC),
+                    ),
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+
+                // Bảo mật & Quyền riêng tư
+                _buildSectionTitle('🔒 Bảo mật & Quyền riêng tư'),
+                _buildSettingsCard([
+                  _buildSettingTile(
+                    icon: Icons.security_rounded,
+                    iconColor: const Color(0xFF95E1D3),
+                    title: 'Bảo mật tài khoản',
+                    subtitle: 'Mật khẩu và xác thực',
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(0xFF999999),
+                    ),
+                    onTap: () {
+                      // TODO: Navigate to security settings
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _buildSettingTile(
+                    icon: Icons.lock_rounded,
+                    iconColor: const Color(0xFFFF8FB1),
+                    title: 'Quyền riêng tư',
+                    subtitle: 'Quản lý quyền riêng tư',
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(0xFF999999),
+                    ),
+                    onTap: () {
+                      // TODO: Navigate to privacy settings
+                    },
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+
+                // Bộ nhớ
+                _buildSectionTitle('💾 Bộ nhớ'),
+                _buildSettingsCard([
+                  _buildSettingTile(
+                    icon: Icons.storage_rounded,
+                    iconColor: const Color(0xFFB983FF),
+                    title: 'Bộ nhớ đệm',
+                    subtitle: _cacheSize,
+                    trailing: TextButton(
+                      onPressed: () => _showClearCacheDialog(),
+                      child: Text(
+                        'Xóa',
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFFFF6B6B),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ],
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+
+                // Về ứng dụng
+                _buildSectionTitle('ℹ️ Về ứng dụng'),
+                _buildSettingsCard([
+                  _buildSettingTile(
+                    icon: Icons.info_rounded,
+                    iconColor: const Color(0xFF7494EC),
+                    title: 'Phiên bản',
+                    subtitle: '1.0.0',
+                    trailing: const SizedBox.shrink(),
+                  ),
+                  const Divider(height: 1),
+                  _buildSettingTile(
+                    icon: Icons.description_rounded,
+                    iconColor: const Color(0xFFFFA726),
+                    title: 'Điều khoản dịch vụ',
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(0xFF999999),
+                    ),
+                    onTap: () {
+                      // TODO: Show terms
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _buildSettingTile(
+                    icon: Icons.privacy_tip_rounded,
+                    iconColor: const Color(0xFF66BB6A),
+                    title: 'Chính sách bảo mật',
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Color(0xFF999999),
+                    ),
+                    onTap: () {
+                      // TODO: Show privacy policy
+                    },
+                  ),
+                ]),
+
+                const SizedBox(height: 30),
+
+                // Logout Button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF6B6B).withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _logout,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF6B6B),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.logout_rounded, size: 22),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Đăng xuất',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              );
 
-              if (confirmed == true && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Cache cleared successfully')),
-                );
-              }
-            },
-          ),
-          const Divider(height: 1),
-
-          // About Section
-          const _SectionHeader(title: 'About'),
-          ListTile(
-            leading: const Icon(Icons.info_outline, color: Color(0xFF2D2535)),
-            title: const Text('Version'),
-            subtitle: const Text(
-              '1.0.0',
-              style: TextStyle(color: Color(0xFF7F7F88), fontSize: 12),
+                const SizedBox(height: 40),
+              ],
             ),
           ),
-          ListTile(
-            leading: const Icon(
-              Icons.description_outlined,
-              color: Color(0xFF2D2535),
-            ),
-            title: const Text('Terms & Conditions'),
-            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Feature coming soon')),
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(
-              Icons.privacy_tip_outlined,
-              color: Color(0xFF2D2535),
-            ),
-            title: const Text('Privacy Policy'),
-            trailing: const Icon(Icons.chevron_right, color: Color(0xFF7F7F88)),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Feature coming soon')),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
         ],
       ),
     );
   }
-}
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      padding: const EdgeInsets.only(left: 24, bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Color(0xFF7F7F88),
-          fontSize: 13,
+        style: GoogleFonts.poppins(
+          fontSize: 16,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
+          color: const Color(0xFF2C2C2E),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsCard(List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(children: children),
+      ),
+    );
+  }
+
+  Widget _buildSettingTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    String? subtitle,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      leading: Container(
+        width: 45,
+        height: 45,
+        decoration: BoxDecoration(
+          color: iconColor.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: iconColor, size: 24),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.poppins(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF2C2C2E),
+        ),
+      ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: const Color(0xFF999999),
+              ),
+            )
+          : null,
+      trailing: trailing,
+    );
+  }
+
+  void _showClearCacheDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Xóa bộ nhớ đệm',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF2C2C2E),
+          ),
+        ),
+        content: Text(
+          'Bạn có chắc muốn xóa tất cả bộ nhớ đệm không? Thao tác này không thể hoàn tác.',
+          style: GoogleFonts.poppins(color: const Color(0xFF666666)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Hủy',
+              style: GoogleFonts.poppins(color: const Color(0xFF666666)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _clearCache();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF6B6B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+            child: Text('Xóa', style: GoogleFonts.poppins(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

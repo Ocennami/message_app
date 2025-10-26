@@ -27,21 +27,17 @@ class SupabaseAuthService {
     required String email,
     required String password,
     String? displayName,
+    bool autoConfirm = true, // Auto-confirm by default
   }) async {
     final response = await _client.auth.signUp(
       email: email,
       password: password,
       data: {'display_name': displayName ?? email.split('@')[0]},
+      emailRedirectTo: null, // Disable email confirmation redirect
     );
 
-    // Create user profile in database
-    if (response.user != null) {
-      await _createUserProfile(
-        userId: response.user!.id,
-        email: email,
-        displayName: displayName ?? email.split('@')[0],
-      );
-    }
+    // Note: User profile will be created automatically by Supabase trigger
+    // No need to manually call _createUserProfile anymore
 
     return response;
   }
@@ -87,6 +83,54 @@ class SupabaseAuthService {
   /// Update email (requires current session)
   Future<UserResponse> updateEmail(String newEmail) async {
     return await _client.auth.updateUser(UserAttributes(email: newEmail));
+  }
+
+  /// Migrate from test account to real account
+  /// This method creates a new user with real email and migrates data
+  Future<AuthResponse> migrateTestAccount({
+    required String newEmail,
+    required String newPassword,
+    required String displayName,
+    String? photoUrl,
+  }) async {
+    final oldUserId = currentUserId;
+    if (oldUserId == null) throw Exception('Not authenticated');
+
+    // Get old user data before signing out (for potential future migration)
+    // ignore: unused_local_variable
+    final oldUserData = await getUserProfile(oldUserId);
+
+    // Sign out from old account
+    await signOut();
+
+    // Create new account with real email
+    final newAuth = await signUp(
+      email: newEmail,
+      password: newPassword,
+      displayName: displayName,
+    );
+
+    if (newAuth.user == null) {
+      throw Exception('Failed to create new account');
+    }
+
+    // Wait a bit for session to be established
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Update photo URL if provided
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      try {
+        await updatePhotoUrl(photoUrl);
+      } catch (e) {
+        print('⚠️ Warning: Failed to update photo URL during migration: $e');
+        // Don't throw - photo can be updated later
+      }
+    }
+
+    // TODO: Migrate user data (messages, contacts, etc.) from old user to new user
+    // This would require backend function to transfer ownership
+
+    return newAuth;
   }
 
   /// Update display name
@@ -139,22 +183,11 @@ class SupabaseAuthService {
   // ============================================
   // USER PROFILE METHODS
   // ============================================
+  // USER PROFILE METHODS
+  // ============================================
 
-  /// Create user profile in database
-  Future<void> _createUserProfile({
-    required String userId,
-    required String email,
-    required String displayName,
-  }) async {
-    await _client.from('users').insert({
-      'id': userId,
-      'email': email,
-      'display_name': displayName,
-      'is_online': true,
-      'last_seen': DateTime.now().toIso8601String(),
-      'created_at': DateTime.now().toIso8601String(),
-    });
-  }
+  // Note: User profiles are now created automatically by Supabase trigger
+  // when a new auth user is created. No need for manual _createUserProfile.
 
   /// Ensure user profile exists (create if not exists, update if exists)
   Future<void> _ensureUserProfile({

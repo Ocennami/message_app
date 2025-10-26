@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:message_app/onboarding_screen.dart';
 import 'package:message_app/home_screen.dart';
+import 'package:message_app/user_profile_update_screen.dart';
 import 'package:message_app/config/supabase_config.dart';
 import 'package:message_app/services/supabase_auth_service.dart';
 import 'package:message_app/services/notification_service.dart';
@@ -14,6 +15,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:message_app/services/fcm_service.dart';
 import 'package:message_app/services/windows_background_service.dart';
 import 'package:message_app/services/version_check_service.dart';
+import 'package:message_app/providers/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -100,7 +102,10 @@ void main() async {
 
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider.value(value: backgroundService)],
+      providers: [
+        ChangeNotifierProvider.value(value: backgroundService),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
       child: MyApp(
         userLoggedIn: isActuallyLoggedIn,
         navigatorKey: navigatorKey,
@@ -111,8 +116,10 @@ void main() async {
   // After runApp, perform a version check (non-blocking)
   WidgetsBinding.instance.addPostFrameCallback((_) async {
     try {
-      // Replace this URL with your real release metadata JSON URL
-      const metadataUrl = 'https://example.com/releases.json';
+      // Sử dụng Supabase Edge Function để check version
+      final metadataUrl =
+          '${SupabaseConfig.supabaseUrl}/functions/v1/releases?platform=${Platform.isAndroid ? 'android' : 'windows'}';
+
       final ctx = navigatorKey.currentContext;
       if (ctx != null) {
         final checker = VersionCheckService(metadataUrl: metadataUrl);
@@ -132,23 +139,66 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      title: 'Message App',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: _getInitialScreen(),
-      routes: {},
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          navigatorKey: navigatorKey,
+          title: 'Message App',
+          theme: themeProvider.lightTheme,
+          darkTheme: themeProvider.darkTheme,
+          themeMode: themeProvider.isDarkMode
+              ? ThemeMode.dark
+              : ThemeMode.light,
+          home: _getInitialScreen(),
+          routes: {},
+        );
+      },
     );
   }
 
   Widget _getInitialScreen() {
     if (userLoggedIn) {
-      return const HomeScreen();
+      return FutureBuilder<bool>(
+        future: _checkIfProfileUpdateRequired(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              backgroundColor: Color(0xFF1a1a1a),
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          final needsProfileUpdate = snapshot.data ?? false;
+          if (needsProfileUpdate) {
+            return const UserProfileUpdateScreen();
+          } else {
+            return const HomeScreen();
+          }
+        },
+      );
     } else {
       return const OnboardingScreen();
+    }
+  }
+
+  Future<bool> _checkIfProfileUpdateRequired() async {
+    try {
+      final authService = SupabaseAuthService();
+      final user = authService.currentUser;
+
+      if (user == null) return false;
+
+      final prefs = await SharedPreferences.getInstance();
+      final profileUpdated = prefs.getBool('profileUpdated') ?? false;
+
+      // Kiểm tra nếu email chứa 'username' và chưa cập nhật profile
+      final email = user.email ?? '';
+      final isDefaultAccount = email.contains('username');
+
+      return isDefaultAccount && !profileUpdated;
+    } catch (e) {
+      debugPrint('Error checking profile update requirement: $e');
+      return false;
     }
   }
 }

@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Alliance Messenger"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "Oceanami"
 #define MyAppExeName "message_app.exe"
 
@@ -28,7 +28,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 OutputDir=C:\Users\Admin\Desktop\Application\message_app\installer
-OutputBaseFilename=AllianceMessengerSetup
+OutputBaseFilename=AllianceMessenger-1.0.0
 SolidCompression=yes
 WizardStyle=modern
 

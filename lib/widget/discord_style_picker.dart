@@ -254,77 +254,101 @@ class _DiscordStylePickerState extends State<DiscordStylePicker>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.5,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Header with tabs
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF2ECF7),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-            ),
-            child: Column(
-              children: [
-                // Drag handle
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[400],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.98,
+      expand: true,
+      snap: true,
+      snapSizes: const [0.4, 0.7, 0.98],
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Header with tabs
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF2ECF7),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                // Tab bar
-                TabBar(
-                  controller: _tabController,
-                  labelColor: const Color(0xFF2D2535),
-                  unselectedLabelColor: const Color(0xFF7F7F88),
-                  indicatorColor: const Color(0xFF2D2535),
-                  tabs: const [
-                    Tab(icon: Icon(Icons.emoji_emotions), text: 'Emoji'),
-                    Tab(icon: Icon(Icons.gif_box), text: 'GIF'),
-                    Tab(icon: Icon(Icons.sticky_note_2), text: 'Stickers'),
-                    Tab(icon: Icon(Icons.star), text: 'Custom'),
+                child: Column(
+                  children: [
+                    // Drag handle
+                    Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    // Tab bar
+                    TabBar(
+                      controller: _tabController,
+                      labelColor: const Color(0xFF2D2535),
+                      unselectedLabelColor: const Color(0xFF7F7F88),
+                      indicatorColor: const Color(0xFF2D2535),
+                      tabs: const [
+                        Tab(icon: Icon(Icons.emoji_emotions), text: 'Emoji'),
+                        Tab(icon: Icon(Icons.gif_box), text: 'GIF'),
+                        Tab(icon: Icon(Icons.sticky_note_2), text: 'Stickers'),
+                        Tab(icon: Icon(Icons.star), text: 'Custom'),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              // Content
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildEmojiTab(scrollController),
+                    _buildGifTab(scrollController),
+                    _buildStickersTab(scrollController),
+                    _buildCustomTab(scrollController),
+                  ],
+                ),
+              ),
+            ],
           ),
-          // Content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildEmojiTab(),
-                _buildGifTab(),
-                _buildStickersTab(),
-                _buildCustomTab(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmojiTab() {
-    return EmojiPicker(
-      onEmojiSelected: (category, emoji) {
-        widget.onEmojiSelected(emoji.emoji);
+        );
       },
     );
   }
 
-  Widget _buildGifTab() {
+  Widget _buildEmojiTab(ScrollController scrollController) {
+    return EmojiPicker(
+      onEmojiSelected: (category, emoji) {
+        widget.onEmojiSelected(emoji.emoji);
+      },
+      config: Config(
+        height: double.infinity,
+        checkPlatformCompatibility: true,
+        emojiViewConfig: EmojiViewConfig(
+          emojiSizeMax: 28,
+          verticalSpacing: 0,
+          horizontalSpacing: 0,
+          gridPadding: EdgeInsets.zero,
+          backgroundColor: Colors.white,
+          columns: 7,
+          replaceEmojiOnLimitExceed: false,
+        ),
+        skinToneConfig: const SkinToneConfig(),
+        categoryViewConfig: const CategoryViewConfig(),
+        bottomActionBarConfig: const BottomActionBarConfig(enabled: false),
+        searchViewConfig: const SearchViewConfig(),
+      ),
+    );
+  }
+
+  Widget _buildGifTab(ScrollController scrollController) {
     return Column(
       children: [
         // Search bar
@@ -382,6 +406,7 @@ class _DiscordStylePickerState extends State<DiscordStylePicker>
                   ),
                 )
               : GridView.builder(
+                  controller: scrollController,
                   padding: const EdgeInsets.all(8),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -447,7 +472,7 @@ class _DiscordStylePickerState extends State<DiscordStylePicker>
     );
   }
 
-  Widget _buildStickersTab() {
+  Widget _buildStickersTab(ScrollController scrollController) {
     return Column(
       children: [
         // Search bar
@@ -495,6 +520,7 @@ class _DiscordStylePickerState extends State<DiscordStylePicker>
                   ),
                 )
               : GridView.builder(
+                  controller: scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
@@ -564,8 +590,9 @@ class _DiscordStylePickerState extends State<DiscordStylePicker>
     );
   }
 
-  Widget _buildCustomTab() {
+  Widget _buildCustomTab(ScrollController scrollController) {
     return SingleChildScrollView(
+      controller: scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

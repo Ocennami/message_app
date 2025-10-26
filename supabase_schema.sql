@@ -142,7 +142,8 @@ CREATE TRIGGER update_messages_updated_at
 -- 8. VIEW: MESSAGES_ENRICHED
 -- ============================================
 -- This view includes user info and reaction counts
-CREATE OR REPLACE VIEW messages_enriched AS
+DROP VIEW IF EXISTS messages_enriched CASCADE;
+CREATE VIEW messages_enriched AS
 SELECT 
   m.id,
   m.conversation_id,
@@ -241,6 +242,24 @@ ALTER TABLE message_reactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE message_seen ENABLE ROW LEVEL SECURITY;
 ALTER TABLE typing_status ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view all users" ON users;
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
+DROP POLICY IF EXISTS "Users can insert own profile" ON users;
+DROP POLICY IF EXISTS "Anyone can view conversations" ON conversations;
+DROP POLICY IF EXISTS "Anyone authenticated can view messages" ON messages;
+DROP POLICY IF EXISTS "Users can insert messages" ON messages;
+DROP POLICY IF EXISTS "Users can update own messages" ON messages;
+DROP POLICY IF EXISTS "Users can delete own messages" ON messages;
+DROP POLICY IF EXISTS "Anyone can view reactions" ON message_reactions;
+DROP POLICY IF EXISTS "Users can add reactions" ON message_reactions;
+DROP POLICY IF EXISTS "Users can remove own reactions" ON message_reactions;
+DROP POLICY IF EXISTS "Anyone can view seen status" ON message_seen;
+DROP POLICY IF EXISTS "Users can mark messages as seen" ON message_seen;
+DROP POLICY IF EXISTS "Anyone can view typing status" ON typing_status;
+DROP POLICY IF EXISTS "Users can update own typing status" ON typing_status;
+DROP POLICY IF EXISTS "Users can delete own typing status" ON typing_status;
+
 -- Users policies
 CREATE POLICY "Users can view all users"
   ON users FOR SELECT
@@ -312,12 +331,51 @@ CREATE POLICY "Users can delete own typing status"
   USING (auth.uid()::text = user_id::text);
 
 -- ============================================
+-- APP RELEASES TABLE (for auto-update)
+-- ============================================
+CREATE TABLE IF NOT EXISTS app_releases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  version TEXT NOT NULL UNIQUE,
+  release_notes TEXT,
+  android_download_url TEXT,
+  windows_download_url TEXT,
+  android_sha256 TEXT,
+  windows_sha256 TEXT,
+  min_supported_version TEXT DEFAULT '1.0.0',
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create index for performance
+CREATE INDEX IF NOT EXISTS idx_app_releases_version ON app_releases(version);
+CREATE INDEX IF NOT EXISTS idx_app_releases_active ON app_releases(is_active);
+CREATE INDEX IF NOT EXISTS idx_app_releases_created_at ON app_releases(created_at);
+
+-- Insert sample release (update with your actual URLs)
+INSERT INTO app_releases (
+  version,
+  release_notes,
+  android_download_url,
+  windows_download_url,
+  android_sha256,
+  windows_sha256,
+  is_active
+) VALUES (
+  '1.0.0',
+  '🎉 Phiên bản đầu tiên của Alliance Messenger!\n\n✨ Tính năng:\n- Chat realtime\n- Upload files & media\n- Emoji & GIF picker\n- Cross-platform support\n- Auto-update system',
+  'https://your-domain.com/releases/android/v1.0.0/app-release.apk',
+  'https://your-domain.com/releases/windows/v1.0.0/AllianceMessengerSetup.exe',
+  'your-android-sha256-hash',
+  'your-windows-sha256-hash',
+  true
+) ON CONFLICT (version) DO NOTHING;
+
+-- ============================================
 -- 12. REALTIME PUBLICATION
 -- ============================================
 -- Enable realtime for messages and typing status
-ALTER PUBLICATION supabase_realtime ADD TABLE messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE typing_status;
-ALTER PUBLICATION supabase_realtime ADD TABLE message_reactions;
+-- Note: Run these manually if needed, as publication commands may vary by setup
 
 -- ============================================
 -- SETUP COMPLETE!

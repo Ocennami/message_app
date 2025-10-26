@@ -33,13 +33,13 @@ dependencies:
   flutter_boxicons: ^3.2.0
 
   # Supabase (PostgreSQL backend)
-  supabase_flutter: ^2.5.0
+  supabase_flutter: ^2.10.3
 
   # File & Media
   image_picker: ^1.2.0
   file_picker: ^10.3.2
   cached_network_image: ^3.4.1
-  flutter_image_compress: ^2.3.0
+  flutter_image_compress: ^2.4.0
   record: ^6.1.2
   audioplayers: ^6.1.0
   path_provider: ^2.1.5
@@ -88,6 +88,8 @@ dependencies:
 
   # Auto Update
   package_info_plus: ^8.1.2
+  image_cropper: ^11.0.0
+  image: ^4.5.4
 
 dev_dependencies:
   flutter_test:

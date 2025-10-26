@@ -1,225 +1,150 @@
-# 💬 Message App - Group Chat Application
+<div align="center">
+  <img src="assets/images/app_icon.png" alt="App Logo" width="150"/>
+  <br/>
+  <h1>Message App</h1>
+  <p><strong>A cross-platform, real-time group chat application built with Flutter and Supabase.</strong></p>
+  <p>Created by <strong>Oceanami</strong></p>
+</div>
 
-**MessageApp** by Oceanami - A real-time group chat application built with Flutter and **Supabase** (with Firebase for notifications).
+<!-- Badges -->
+<div align="center">
+  <!-- Platforms -->
+  <img src="https://img.shields.io/badge/platform-android%20%7C%20ios%20%7C%20web%20%7C%20windows%20%7C%20macos%20%7C%20linux-blue?style=for-the-badge" alt="Platforms">
+  <!-- Flutter Version -->
+  <img src="https://img.shields.io/badge/Flutter-^3.9.0-02569B?style=for-the-badge&logo=flutter" alt="Flutter Version">
+  <!-- License -->
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License">
+  <!-- Supabase -->
+  <img src="https://img.shields.io/badge/Backend-Supabase-3ECF8E?style=for-the-badge&logo=supabase" alt="Supabase">
+</div>
 
-> **⚡ Migration Status:** This project uses Supabase as primary backend and Firebase for push notifications.
+<br/>
 
-## 📱 Overview
+> **MessageApp** is a single-room group chat application designed for teams, families, or any group that needs a shared communication space. All authenticated users join a single, common chatroom with a full suite of modern messaging features.
 
-This is a **single-room group chat application** designed for teams, families, or any group that needs a dedicated communication space. All authenticated users share one common chatroom with full-featured messaging capabilities.
+## 🖼️ Application Interface
 
-## ✨ Features
+<div align="center">
+  <table>
+    <tr>
+      <td valign="top"><img src="https://raw.githubusercontent.com/Ocennami/message_app/master/screenshots/onboarding.gif" alt="Onboarding" width="200"/></td>
+      <td valign="top"><img src="https://raw.githubusercontent.com/Ocennami/message_app/master/screenshots/chat_home.png" alt="Chat Home" width="200"/></td>
+      <td valign="top"><img src="https://raw.githubusercontent.com/Ocennami/message_app/master/screenshots/chat_features.gif" alt="Chat Features" width="200"/></td>
+      <td valign="top"><img src="https://raw.githubusercontent.com/Ocennami/message_app/master/screenshots/profile.png" alt="Profile" width="200"/></td>
+    </tr>
+    <tr>
+      <td align="center"><i>Onboarding Screen</i></td>
+      <td align="center"><i>Main Chat Interface</i></td>
+      <td align="center"><i>Chat Features</i></td>
+      <td align="center"><i>User Profile</i></td>
+    </tr>
+  </table>
+</div>
 
-### 🎯 Core Features
+## ✨ Key Features
 
-- ✅ **Real-time Messaging** - Instant message delivery with Supabase PostgreSQL + Realtime
-- ✅ **User Authentication** - Email/Password authentication via Supabase Auth
-- ✅ **Beautiful Onboarding** - Smooth intro screens with animations
-- ✅ **Responsive UI** - Works on mobile, tablet, and desktop
+| Feature Group           |   Icon   | Details                                                     |
+| :---------------------- | :------: | :---------------------------------------------------------- |
+| **Real-time Messaging** |    ⚡    | Instantly send and receive messages with Supabase Realtime. |
+| **User Authentication** |    🔐    | Sign in with Email/Password via Supabase Auth.              |
+| **Text Messages**       |    📝    | Compose and send unlimited text messages.                   |
+| **Image Sharing**       |    🖼️    | Pick images from the gallery, with automatic compression.   |
+| **Voice Messages**      |    🎤    | Record and send voice notes (mobile only).                  |
+| **File Attachments**    |    📎    | Share documents and other file types.                       |
+| **GIF Support**         |    🎉    | Search and send animated GIFs from Giphy.                   |
+| **Message Reactions**   |    ❤️    | React to messages with 6 quick emojis.                      |
+| **Reply to Message**    |    ↪️    | Reply to a specific message with a preview.                 |
+| **Forward Message**     | forwards | Forward messages to others.                                 |
+| **Typing Indicator**    |    ⌨️    | See when someone is typing a message.                       |
+| **"Seen" Status**       |    ✅    | Know when your message has been read.                       |
+| **Message Search**      |    🔍    | Search for content within the conversation.                 |
+| **Cross-Platform**      |    💻    | Runs on Android, iOS, Web, Windows, macOS, and Linux.       |
+| **Theme Customization** |    🎨    | Choose from 12 different accent colors.                     |
+| **Push Notifications**  |    🔔    | Get new message notifications via Firebase Cloud Messaging. |
 
-### 💬 Chat Features
+## 🛠️ Tech Stack
 
-1. **Text Messages** - Send and receive text messages instantly
-2. **Image Sharing** - Pick from gallery with automatic compression (70% quality)
-3. **File Attachments** - Share documents and files
-4. **Voice Messages** - Record and send voice notes (mobile only)
-5. **GIF Support** - Send animated GIFs
-6. **Emoji Picker** - 176+ emojis with search and categories
-
-### 🎨 Interactive Features
-
-7. **Message Reactions** - React with 6 quick emojis (❤️ 😂 👍 👎 😮 😢)
-8. **Reply/Quote** - Reply to specific messages with preview
-9. **Forward Messages** - Forward messages with "Forwarded" badge
-10. **Message Actions** - Copy, delete, reply to messages
-11. **Search Messages** - Search with text highlighting
-12. **Typing Indicator** - See when others are typing
-13. **Read Status** - "Seen" indicators for messages
-14. **Timestamps** - Smart timestamp formatting (Today, Yesterday, dates)
-
-### 🎛️ Advanced Features
-
-15. **Pagination** - Load 50 messages at a time for performance
-16. **Theme Selector** - 12 accent color themes
-17. **Push Notifications** - FCM integration (mobile/web only)
-18. **Cross-Platform** - Android, iOS, Web, Windows, macOS, Linux
-
-## 🏗️ Architecture
-
-### Tech Stack
-
-- **Frontend**: Flutter 3.9.0+ with Dart
+- **Frontend**: Flutter `^3.9.0`
 - **Backend**: Supabase (Auth, PostgreSQL, Storage, Realtime)
-- **Storage**: Cloudflare R2 (S3-compatible via MinIO)
-- **Notifications**: Firebase Cloud Messaging (FCM)
-- **State Management**: Provider pattern with StreamBuilder
-- **Audio**: record ^6.1.2 (mobile), audioplayers ^6.1.0
-- **Images**: image_picker, flutter_image_compress, cached_network_image
-
-### Project Structure
-
-```
-lib/
-├── main.dart                 # App entry point
-├── auth_screen.dart          # Authentication UI
-├── home_screen.dart          # Main chat interface (~2600 lines)
-├── profile_screen.dart       # User profile management
-├── onboarding_screen.dart    # Intro screens
-├── config/
-│   └── supabase_config.dart  # Supabase configuration
-├── services/
-│   ├── supabase_auth_service.dart     # Authentication
-│   ├── supabase_message_service.dart  # Messages & real-time
-│   └── supabase_storage_service.dart  # File storage
-└── themes/
-    └── app_theme.dart        # Theme configuration
-```
+- **File Storage**: Cloudflare R2 (S3-compatible via MinIO)
+- **Push Notifications**: Firebase Cloud Messaging (FCM)
+- **State Management**: Provider & StreamBuilder
+- **Key Dependencies**:
+  - `supabase_flutter`: Supabase integration
+  - `firebase_messaging`: Push notifications
+  - `minio`: Cloudflare R2 connection
+  - `image_picker`, `file_picker`: File & image selection
+  - `record`, `audioplayers`: Audio recording and playback
+  - `provider`: State management
+  - `giphy_get`: Giphy integration
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Flutter SDK 3.9.0 or higher
-- Supabase account (free tier available)
+- Flutter SDK `3.9.0` or higher
+- A Supabase account (free tier available)
 - Android Studio / Xcode (for mobile development)
-- Visual Studio 2022 (for Windows development)
+- Visual Studio 2022 with "Desktop development with C++" (for Windows development)
 
 ### Installation
 
-1. **Clone the repository**
+1.  **Clone the repository:**
 
-   ```bash
-   git clone https://github.com/Ocennami/message_app.git
-   cd message_app
-   ```
+    ```bash
+    git clone https://github.com/Ocennami/message_app.git
+    cd message_app
+    ```
 
-2. **Install dependencies**
+2.  **Install dependencies:**
 
-   ```bash
-   flutter pub get
-   ```
+    ```bash
+    flutter pub get
+    ```
 
-3. **Configure Supabase** (IMPORTANT!)
+3.  **Configure Supabase:**
 
-   📖 **Hướng dẫn chi tiết**: See `SUPABASE_SETUP_GUIDE.md`
+    - Go to [supabase.com](https://supabase.com) and create a new project.
+    - In the **SQL Editor**, run the contents of `supabase_schema.sql` to create tables and policies.
+    - Update your project information in `lib/config/auto_update_config.dart` (or the corresponding config file):
+      ```dart
+      // lib/config/supabase_config.dart (Example)
+      const supabaseUrl = 'YOUR_SUPABASE_URL';
+      const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+      ```
 
-   Quick steps:
+4.  **Run the application:**
+    ```bash
+    # Run on your chosen device (android, ios, chrome, windows)
+    flutter run -d <device_id>
+    ```
 
-   - Create Supabase project at https://supabase.com
-   - Run database migration: Execute `supabase_schema.sql` in SQL Editor
-   - Update config: Edit `lib/config/supabase_config.dart` with your project URL and keys
-   - **Enable Row Level Security (RLS)** on all tables (critical!)
+## 📂 Project Structure
 
-4. **Run the app**
-
-   ```bash
-   # Android
-   flutter run -d android
-
-   # iOS
-   flutter run -d ios
-
-   # Windows
-   flutter run -d windows
-
-   # Web
-   flutter run -d chrome
-   ```
-
-## � User Guide
-
-For detailed user instructions in Vietnamese, see `USER_GUIDE.md`.
-
-## �🔧 Configuration
-
-### Supabase Setup
-
-1. Create project at [supabase.com](https://supabase.com)
-2. Get your project URL and anon key from Settings → API
-3. Update `lib/config/supabase_config.dart`:
-   ```dart
-   const supabaseUrl = 'YOUR_PROJECT_URL';
-   const supabaseAnonKey = 'YOUR_ANON_KEY';
-   ```
-4. Run database migration: `supabase_schema.sql` in SQL Editor
-5. Enable RLS policies on all tables
-
-### Known Limitations
-
-- **Voice Messages**: Only work on Android/iOS (not supported on Windows/Web/Linux)
-- **Push Notifications**: Work on Android/iOS/Web/Windows (using Windows Notification API)
-
-## 📦 Dependencies
-
-```yaml
-dependencies:
-  supabase_flutter: ^2.5.0
-  firebase_core: ^3.8.1
-  firebase_messaging: ^15.2.1
-  minio: ^3.5.8 # Cloudflare R2 storage
-  record: ^6.1.2
-  audioplayers: ^6.1.0
-  image_picker: ^1.2.0
-  flutter_image_compress: ^2.3.0
-  cached_network_image: ^3.4.1
-  google_fonts: ^6.3.1
-  # ... see pubspec.yaml for full list
 ```
-
-## 🎨 Customization
-
-### Theme Colors
-
-Edit 12 available accent colors in `home_screen.dart`:
-
-```dart
-final _accentColors = [
-  Color(0xFF1877F2), // Facebook Blue
-  Color(0xFF0088CC), // Telegram Blue
-  // ... customize colors
-];
+lib/
+├── main.dart                 # Application entry point
+├── auth_screen.dart          # Login/Register UI
+├── home_screen.dart          # Main chat interface
+├── profile_screen.dart       # User profile management
+├── config/                   # Contains configuration files (Supabase, Giphy,...)
+├── model/                    # Data model classes
+├── providers/                # Provider classes for state management
+├── services/                 # Services (Supabase, Storage,...)
+├── themes/                   # Theme configuration
+└── widget/                   # Reusable widgets
 ```
-
-### Conversation ID
-
-For multiple groups, change the conversation ID in `home_screen.dart`:
-
-```dart
-final _conversationId = 'your-group-id'; // Default: 'default'
-```
-
-## 🐛 Troubleshooting
-
-### "Missing or insufficient permissions"
-
-→ Deploy Firebase security rules (see `FIREBASE_RULES_SETUP.md`)
-
-### "MissingPluginException for firebase_messaging"
-
-→ Normal on Windows/Desktop, notifications only work on mobile/web
-
-### Build fails on Windows
-
-→ Ensure Visual Studio 2022 with "Desktop development with C++" is installed
 
 ## 📝 License
 
-This project is created by Oceanami for educational purposes.
+This project is licensed under the MIT License. See the `LICENSE` file for more details.
 
-## 🙏 Credits
+## 🙏 Acknowledgements
 
-- **Developer**: Oceanami
-- **Framework**: Flutter by Google
-- **Backend**: Supabase (primary database & auth) and Firebase (push notifications)
-
-## 📞 Support
-
-For issues and feature requests, please contact the development team.
+- **Developed by**: [Oceanami](https://github.com/Ocennami)
+- **Framework**: Flutter
+- **Backend**: Supabase & Firebase
 
 ---
 
-**Status**: ✅ Production Ready (after deploying Firebase rules)
-
-**Version**: 1.0.0+1
-
-**Last Updated**: October 13, 2025
+_This README was last updated on October 26, 2025._
